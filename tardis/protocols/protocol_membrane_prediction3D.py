@@ -30,15 +30,17 @@
 Describe your python module here:
 This module will provide the traditional Hello world example
 """
+from pyworkflow.protocol import params, Integer, PointerParam, BooleanParam, IntParam, FloatParam, StringParam, LEVEL_ADVANCED
+from pyworkflow.utils import Message
+from pwem.protocols import EMProtocol
+from tomo.protocols.protocol_base import ProtTomoBase
+from tomo.objects import SetOfTomoMasks, TomoMask
 import os
 import csv
-from pyworkflow.protocol import membrans3d, params, Integer, PointerParam, BooleanParam, IntParam, FloatParam, StringParam, LEVEL_ADVANCED
-from pyworkflow.utils import Message
-from tomo.objects import SetOfTomograms
 
 OUTPUT_TOMOMASK_NAME = 'tomoMasks'
 
-class ProtMembrans3d(membrans3d):
+class ProtMembrans3d(EMProtocol, ProtTomoBase):
     """
     This protocol will print hello world in the console
     IMPORTANT: Classes names should be unique, better prefix them
@@ -47,10 +49,6 @@ class ProtMembrans3d(membrans3d):
     _possibleOutputs = {OUTPUT_TOMOMASK_NAME: SetOfTomoMasks}
 
     tomoMaskList = []
-
-    def __init__(self, **args):
-        membrans3d.__init__(self, **args)
-        self.stepsExecutionMode = STEPS_PARALLEL
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):
@@ -75,7 +73,7 @@ class ProtMembrans3d(membrans3d):
                       #label='Times', important=True,
                       #help='Times the message will be printed.')
 
-         form.addParam('additionalArgs', StringParam,
+        form.addParam('additionalArgs', StringParam,
                       default="",
                       expertLevel=LEVEL_ADVANCED,
                       label='Additional options',

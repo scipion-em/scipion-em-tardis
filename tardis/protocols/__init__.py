@@ -3,4 +3,4 @@
 # Module to declare protocols
 # Find documentation here: https://scipion-em.github.io/docs/docs/developer/creating-a-protocol
 # **************************************************************************
-from .protocol_membrane_prediction2D import MyPluginPrefixHelloWorld
+from .protocol_membrane_prediction3D import ProtMembrans3d

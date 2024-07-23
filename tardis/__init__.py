@@ -101,6 +101,7 @@ class Plugin(pwem.Plugin):
         installationCmd += 'git clone https://github.com/SMLC-NYSBC/TARDIS.git && '
         installationCmd += 'cd TARDIS && '
         installationCmd += 'pip install . && '
+        installationCmd += 'cd .. && '
 
         # Flag installation finished
         installationCmd += 'touch %s' % TARDIS_INSTALLED
