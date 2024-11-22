@@ -132,9 +132,7 @@ class ProtMicro3d(EMProtocol, ProtTomoBase):
 
         # say what the parameter says!!
         outFileName= 'segmentation.mrc'
-        path= tomo
-        absolute_path = os.path.abspath("filename_or_directory")
-        print(absolute_path)
+
 
         args =  ' -dir %s -out %s' % (inputFilename, outFileName)
 
