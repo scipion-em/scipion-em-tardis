@@ -132,7 +132,8 @@ class ProtMicro3d(EMProtocol, ProtTomoBase):
 
 
 
-        args =  ' -dir %s -out %s' % (inputFilename, outFileName)
+        args =  ' -dir %s -out %s ' % (inputFilename, outFileName)
+        args += ' -px %f ' %self.inputData.getSamplingRate()
 
         Plugin.runTardis(self, 'tardis_mt', args,  cwd=tsIdFolder)
 

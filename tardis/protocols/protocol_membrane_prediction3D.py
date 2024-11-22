@@ -135,7 +135,8 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
         #TODO Create symbollic 
         #args = ' -dir %s' %absolute_path
         #args += ' -out %s' %outFileName
-        args =  ' -dir %s -out %s' % (inputFilename, outFileName)
+        args =  ' -dir %s -out %s ' % (inputFilename, outFileName)
+        args += ' -px %f ' %self.inputData.getSamplingRate()
 
         Plugin.runTardis(self, 'tardis_mem', args,  cwd=tsIdFolder)
         #self.runJob("tardis_mem", args)
