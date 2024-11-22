@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # **************************************************************************
 # *
-# * Authors:     J.L. Vilas (jlvilas@cnb.csic.es)
+# * Authors:     raquel.fabra@estudiante.uam.es
 # *
-# * your institution
+# * Escuela Politécnica Superior (EPS)
 # *
 # * This program is free software; you can redistribute it and/or modify
 # * it under the terms of the GNU General Public License as published by
@@ -30,16 +30,27 @@
 Describe your python module here:
 This module will provide the traditional Hello world example
 """
-from pyworkflow.protocol import Protocol, params, Integer
+import os
+import csv
+from pyworkflow.protocol import membrans3d, params, Integer, PointerParam, BooleanParam, IntParam, FloatParam, StringParam, LEVEL_ADVANCED
 from pyworkflow.utils import Message
+from tomo.objects import SetOfTomograms
 
+OUTPUT_TOMOMASK_NAME = 'tomoMasks'
 
-class MyPluginPrefixHelloWorld(Protocol):
+class ProtMicro3d(micro3d):
     """
     This protocol will print hello world in the console
     IMPORTANT: Classes names should be unique, better prefix them
     """
-    _label = 'Hello world'
+    _label = 'tomogram membrane segmentation'
+    _possibleOutputs = {OUTPUT_TOMOMASK_NAME: SetOfTomoMasks}
+
+    tomoMaskList = []
+
+    def __init__(self, **args):
+        micro3d.__init__(self, **args)
+        self.stepsExecutionMode = STEPS_PARALLEL
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):
@@ -47,42 +58,110 @@ class MyPluginPrefixHelloWorld(Protocol):
         Params:
             form: this is the form to be populated with sections and params.
         """
+
+        # The most basic segmentation command is as follows:
+        # tardis_mt -dir <path-to-your-tomograms> -out mrc_None
+
         # You need a params to belong to a section:
         form.addSection(label=Message.LABEL_INPUT)
-        form.addParam('message', params.StringParam,
-                      default='Hello world!',
-                      label='Message', important=True,
-                      help='What will be printed in the console.')
+        form.addParam('inTomograms', PointerParam,
+                      pointerClass='SetOfTomograms',
+                      allowsNull=False,
+                      label='Input tomograms')
+                      
 
-        form.addParam('times', params.IntParam,
-                      default=10,
-                      label='Times', important=True,
-                      help='Times the message will be printed.')
+        #form.addParam('times', params.IntParam,
+                      #default=10,
+                      #label='Times', important=True,
+                      #help='Times the message will be printed.')
 
-        form.addParam('previousCount', params.IntParam,
+         form.addParam('additionalArgs', StringParam,
+                      default="",
+                      expertLevel=LEVEL_ADVANCED,
+                      label='Additional options',
+                      help='You can enter additional command line options to Microtubules here.')
+
+        #form.addParam('previousCount', params.IntParam,
+                      #default=0,
+                      #allowsNull=True,
+                      #label='Previous count',
+                      #help='Previous count of printed messages',
+                      #allowsPointers=True)
+
+        form.addParam('typeOfSegmentation', params.EnumParam,
+                      choices=['instance segmentation',
+                               'semantic segmentation'],
                       default=0,
-                      allowsNull=True,
-                      label='Previous count',
-                      help='Previous count of printed messages',
-                      allowsPointers=True)
+                      label='Choose type of output segmentation',
+                      display=params.EnumParam.DISPLAY_COMBO)
 
     # --------------------------- STEPS functions ------------------------------
     def _insertAllSteps(self):
         # Insert processing steps
-        self._insertFunctionStep('greetingsStep')
-        self._insertFunctionStep('createOutputStep')
+        for i, tomo in enumerate(self.inTomograms.get()):
+            self._insertFunctionStep(self.segmentMembraneStep,
+                        tomo.getFileName())
 
-    def greetingsStep(self):
+        self._insertFunctionStep(self.createOutputStep)
+
+    def segmentMembraneStep(self, tomofilename):
         # say what the parameter says!!
+        outFileName= 'segmentation.mrc'
+        path= tomo
+        absolute_path = os.path.abspath("filename_or_directory")
+        print(absolute_path)
+        tomoBaseName = removeBaseExt(tomofilename)
 
-        for time in range(0, self.times.get()):
-            print(self.message)
+        #TODO Create symbollic 
+        args = ' -dir %s' %absolute_path
+        args += ' -out %s' %outFileName
+
+        self.runJob("tardis_mt", args)
 
     def createOutputStep(self):
         # register how many times the message has been printed
         # Now count will be an accumulated value
-        timesPrinted = Integer(self.times.get() + self.previousCount.get())
-        self._defineOutputs(count=timesPrinted)
+        labelledSet = self._genOutputSetOfTomoMasks(
+            self.tomoMaskList, 'segmented')
+        self._defineOutputs(**{OUTPUT_TOMOMASK_NAME: labelledSet})
+        self._defineSourceRelation(self.inTomograms.get(), labelledSet)
+
+    def _genOutputSetOfTomoMasks(self, tomoMaskList, suffix):
+        tomoMaskSet = SetOfTomoMasks.create(
+            self._getPath(), template='tomomasks%s.sqlite', suffix=suffix)
+        inTomoSet = self.inTomograms.get()
+        tomoMaskSet.copyInfo(inTomoSet)
+        counter = 1
+        
+        if output_format == 'csv':
+            csv_filename = os.path.join(self._getPath(), f'tomomasks_{suffix}.csv')
+            with open(csv_filename, 'w', newline='') as csvfile:
+                fieldnames = ['counter', 'file', 'volume_name']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+
+                for file, inTomo in zip(tomoMaskList, inTomoSet):
+                    tomoMask = TomoMask()
+                    fn = inTomo.getFileName()
+                    tomoMask.copyInfo(inTomo)
+                    tomoMask.setLocation((counter, file))
+                    vol_name = self._getExtraPath(replaceBaseExt(fn, 'csv'))
+                    tomoMask.setVolName(vol_name)
+                    tomoMaskSet.append(tomoMask)
+
+                    writer.writerow({'counter': counter, 'file': file, 'volume_name': vol_name})
+                    counter += 1
+        else:
+            for file, inTomo in zip(tomoMaskList, inTomoSet):
+                tomoMask = TomoMask()
+                fn = inTomo.getFileName()
+                tomoMask.copyInfo(inTomo)
+                tomoMask.setLocation((counter, file))
+                tomoMask.setVolName(self._getExtraPath(replaceBaseExt(fn, 'mrc')))
+                tomoMaskSet.append(tomoMask)
+                counter += 1
+
+        return tomoMaskSet
 
     # --------------------------- INFO functions -----------------------------------
     def _summary(self):
