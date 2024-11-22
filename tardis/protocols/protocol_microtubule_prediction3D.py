@@ -32,7 +32,7 @@ This module will provide the traditional Hello world example
 """
 import os
 import csv
-from pyworkflow.utils import makePath
+from pyworkflow.utils import Message, makePath
 from pwem.protocols import EMProtocol
 from tomo.protocols.protocol_base import ProtTomoBase
 from pyworkflow.protocol import params, Integer, PointerParam, BooleanParam, IntParam, FloatParam, StringParam, LEVEL_ADVANCED
