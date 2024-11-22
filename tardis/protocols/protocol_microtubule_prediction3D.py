@@ -40,6 +40,8 @@ from tomo.objects import SetOfTomograms, SetOfTomoMasks
 
 OUTPUT_TOMOMASK_NAME = 'tomoMasks'
 
+INSTANCE_SEGMENTATION = 0
+
 class ProtMicro3d(EMProtocol, ProtTomoBase):
     _label = 'microtubule segmentation'
     _possibleOutputs = {OUTPUT_TOMOMASK_NAME: SetOfTomoMasks}
