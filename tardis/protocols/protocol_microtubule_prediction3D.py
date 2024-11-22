@@ -32,7 +32,7 @@ This module will provide the traditional Hello world example
 """
 import os
 import csv
-from pyworkflow.utils import Message, makePath
+from pyworkflow.utils import makePath
 from pwem.protocols import EMProtocol
 from tomo.protocols.protocol_base import ProtTomoBase
 from pyworkflow.protocol import params, Integer, PointerParam, BooleanParam, IntParam, FloatParam, StringParam, LEVEL_ADVANCED
@@ -85,7 +85,49 @@ class ProtMicro3d(EMProtocol, ProtTomoBase):
 
         self._insertFunctionStep(self.createOutputStep)
 
-    def segmentMicrotubuleStep(self, tomofilename):
+
+
+
+
+    def setupFolderStep(self, tomId):
+        # Creating the tomogram folder
+        tomoPath = self._getExtraPath(tomId)
+        makePath(tomoPath)
+
+        inputData = self.inTomograms.get()
+        print(tomId)
+        tomo = inputData[{'_tsId': tomId}]
+
+        src = tomo.getFileName()
+        dst = os.path.join(tomoPath, tomId + '.mrc')
+        #os.symlink(src, dst)
+        import shutil
+
+        shutil.copy(src, dst)
+        return tomoPath
+
+    def segmentMicrotubuleStep(self, tomId):
+        # say what the parameter says!!
+        path =self.setupFolderStep(tomId)
+        inputData = self.inTomograms.get()
+        #absolute_path = os.path.abspath(path)
+        print(tomId)
+        tomo = inputData[{'_tsId': tomId}]
+        #print(absolute_path)
+        #TODO
+        if self.typeOfSegmentation.get() == 0:
+            outFileName = 'mrc_mrc'
+        elif self.typeOfSegmentation.get() == 1:
+            outFileName = 'mrc_None'
+        else:
+            if self.typeOfSegmentation.get() == 2:
+                pass
+        #path= tomo
+        #tomoBaseName = removeBaseExt(tomofilename)
+        inputFilename = tomId + '.mrc'
+        tsIdFolder = self._getExtraPath(tomId)
+
+
         # say what the parameter says!!
         outFileName= 'segmentation.mrc'
         path= tomo
@@ -93,11 +135,10 @@ class ProtMicro3d(EMProtocol, ProtTomoBase):
         print(absolute_path)
         tomoBaseName = removeBaseExt(tomofilename)
 
-        #TODO Create symbollic 
-        args = ' -dir %s' %absolute_path
-        args += ' -out %s' %outFileName
+        args =  ' -dir %s -out %s' % (inputFilename, outFileName)
 
-        self.runJob("tardis_mt", args)
+        Plugin.runTardis(self, 'tardis_mt', args,  cwd=tsIdFolder)
+
 
     def createOutputStep(self):
         # register how many times the message has been printed

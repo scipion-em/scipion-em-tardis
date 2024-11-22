@@ -31,7 +31,7 @@ Describe your python module here:
 This module will provide the traditional Hello world example
 """
 from pyworkflow.protocol import params, Integer, PointerParam, BooleanParam, IntParam, FloatParam, StringParam, LEVEL_ADVANCED
-from pyworkflow.utils import Message, makePath
+from pyworkflow.utils import makePath
 from pwem.protocols import EMProtocol
 from tomo.protocols.protocol_base import ProtTomoBase
 from tomo.objects import SetOfTomoMasks, TomoMask
