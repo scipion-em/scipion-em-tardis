@@ -80,12 +80,12 @@ class ProtMicro3d(EMProtocol, ProtTomoBase):
     def _insertAllSteps(self):
         # Insert processing steps
         for i, tomo in enumerate(self.inTomograms.get()):
-            self._insertFunctionStep(self.segmentMembraneStep,
+            self._insertFunctionStep(self.segmentMicrotubuleStep,
                         tomo.getFileName())
 
         self._insertFunctionStep(self.createOutputStep)
 
-    def segmentMembraneStep(self, tomofilename):
+    def segmentMicrotubuleStep(self, tomofilename):
         # say what the parameter says!!
         outFileName= 'segmentation.mrc'
         path= tomo
