@@ -86,7 +86,7 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
         
         form.addParam('dt', FloatParam,
                       default=0.9,
-                      condition='typeOfSegmentation==INSTANCE_SEGMENTATION',
+                      condition='typeOfSegmentation==%i'INSTANCE_SEGMENTATION,
                       label='Threshold',
                       help='You can enter additional command line options to MemBrain here.')
 
