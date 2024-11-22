@@ -83,7 +83,7 @@ class ProtMicro3d(EMProtocol, ProtTomoBase):
         # Insert processing steps
         for i, tomo in enumerate(self.inTomograms.get()):
             self._insertFunctionStep(self.segmentMicrotubuleStep,
-                        tomo.getFileName())
+                        tomo.getTsId())
 
         self._insertFunctionStep(self.createOutputStep)
 
