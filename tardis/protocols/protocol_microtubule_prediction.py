@@ -32,25 +32,19 @@ This module will provide the traditional Hello world example
 """
 import os
 import csv
-from pyworkflow.protocol import membrans3d, params, Integer, PointerParam, BooleanParam, IntParam, FloatParam, StringParam, LEVEL_ADVANCED
-from pyworkflow.utils import Message
-from tomo.objects import SetOfTomograms
+from pyworkflow.utils import Message, makePath
+from pwem.protocols import EMProtocol
+from tomo.protocols.protocol_base import ProtTomoBase
+from pyworkflow.protocol import params, Integer, PointerParam, BooleanParam, IntParam, FloatParam, StringParam, LEVEL_ADVANCED
+from tomo.objects import SetOfTomograms, SetOfTomoMasks
 
 OUTPUT_TOMOMASK_NAME = 'tomoMasks'
 
-class ProtMicro3d(micro3d):
-    """
-    This protocol will print hello world in the console
-    IMPORTANT: Classes names should be unique, better prefix them
-    """
-    _label = 'tomogram membrane segmentation'
+class ProtMicro3d(EMProtocol, ProtTomoBase):
+    _label = 'microtubule segmentation'
     _possibleOutputs = {OUTPUT_TOMOMASK_NAME: SetOfTomoMasks}
 
     tomoMaskList = []
-
-    def __init__(self, **args):
-        micro3d.__init__(self, **args)
-        self.stepsExecutionMode = STEPS_PARALLEL
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):
@@ -60,7 +54,7 @@ class ProtMicro3d(micro3d):
         """
 
         # The most basic segmentation command is as follows:
-        # tardis_mt -dir <path-to-your-tomograms> -out mrc_None
+        # tardis_mem -dir <path-to-your-tomograms> -out mrc_None
 
         # You need a params to belong to a section:
         form.addSection(label=Message.LABEL_INPUT)
@@ -68,30 +62,17 @@ class ProtMicro3d(micro3d):
                       pointerClass='SetOfTomograms',
                       allowsNull=False,
                       label='Input tomograms')
-                      
 
-        #form.addParam('times', params.IntParam,
-                      #default=10,
-                      #label='Times', important=True,
-                      #help='Times the message will be printed.')
-
-         form.addParam('additionalArgs', StringParam,
+        form.addParam('additionalArgs', StringParam,
                       default="",
                       expertLevel=LEVEL_ADVANCED,
                       label='Additional options',
-                      help='You can enter additional command line options to Microtubules here.')
-
-        #form.addParam('previousCount', params.IntParam,
-                      #default=0,
-                      #allowsNull=True,
-                      #label='Previous count',
-                      #help='Previous count of printed messages',
-                      #allowsPointers=True)
+                      help='You can enter additional command line options to MemBrain here.')
 
         form.addParam('typeOfSegmentation', params.EnumParam,
                       choices=['instance segmentation',
                                'semantic segmentation'],
-                      default=0,
+                      default=INSTANCE_SEGMENTATION,
                       label='Choose type of output segmentation',
                       display=params.EnumParam.DISPLAY_COMBO)
 
