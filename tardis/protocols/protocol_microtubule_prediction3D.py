@@ -79,6 +79,12 @@ class ProtMicro3d(EMProtocol, ProtTomoBase):
                       label='Choose type of output segmentation',
                       display=params.EnumParam.DISPLAY_COMBO)
 
+        form.addParam('dt', FloatParam,
+                      default=0.9,
+                      condition='typeOfSegmentation==INSTANCE_SEGMENTATION'
+                      label='Threshold',
+                      help='You can enter additional command line options to MemBrain here.') 
+
     # --------------------------- STEPS functions ------------------------------
     def _insertAllSteps(self):
         # Insert processing steps
@@ -134,6 +140,7 @@ class ProtMicro3d(EMProtocol, ProtTomoBase):
 
         args =  ' -dir %s -out %s ' % (inputFilename, outFileName)
         args += ' -px %f ' % inputData.getSamplingRate()
+        args += ' -dt %f ' % self.dt.get()
 
         Plugin.runTardis(self, 'tardis_mt', args,  cwd=tsIdFolder)
 
