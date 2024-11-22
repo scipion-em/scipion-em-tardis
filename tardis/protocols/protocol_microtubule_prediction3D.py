@@ -37,6 +37,7 @@ from pwem.protocols import EMProtocol
 from tomo.protocols.protocol_base import ProtTomoBase
 from pyworkflow.protocol import params, Integer, PointerParam, BooleanParam, IntParam, FloatParam, StringParam, LEVEL_ADVANCED
 from tomo.objects import SetOfTomograms, SetOfTomoMasks
+from tardis import Plugin
 
 OUTPUT_TOMOMASK_NAME = 'tomoMasks'
 
