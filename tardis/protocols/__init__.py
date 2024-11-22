@@ -5,3 +5,4 @@
 # **************************************************************************
 
 from .protocol_membrane_prediction3D import ProtMembrans3d
+from .protocol_microtubule_prediction3D import ProtMicro3d
