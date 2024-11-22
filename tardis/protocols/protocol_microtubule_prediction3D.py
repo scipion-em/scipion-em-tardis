@@ -131,9 +131,6 @@ class ProtMicro3d(EMProtocol, ProtTomoBase):
         tsIdFolder = self._getExtraPath(tomId)
 
 
-        # say what the parameter says!!
-        outFileName= 'segmentation.mrc'
-
 
         args =  ' -dir %s -out %s' % (inputFilename, outFileName)
 
