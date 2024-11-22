@@ -135,7 +135,6 @@ class ProtMicro3d(EMProtocol, ProtTomoBase):
         path= tomo
         absolute_path = os.path.abspath("filename_or_directory")
         print(absolute_path)
-        tomoBaseName = removeBaseExt(tomofilename)
 
         args =  ' -dir %s -out %s' % (inputFilename, outFileName)
 
