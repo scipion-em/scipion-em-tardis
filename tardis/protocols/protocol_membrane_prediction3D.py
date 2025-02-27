@@ -31,7 +31,7 @@ Describe your python module here:
 This module will provide the traditional Hello world example
 """
 from pyworkflow.protocol import params, Integer, PointerParam, BooleanParam, IntParam, FloatParam, StringParam, LEVEL_ADVANCED
-from pyworkflow.utils import Message, makePath
+from pyworkflow.utils import Message, makePath, replaceBaseExt
 from pwem.protocols import EMProtocol
 from tomo.protocols.protocol_base import ProtTomoBase
 from tomo.objects import SetOfTomoMasks, TomoMask
@@ -43,6 +43,7 @@ import csv
 OUTPUT_TOMOMASK_NAME = 'tomoMasks'
 
 INSTANCE_SEGMENTATION = 0
+SEMANTIC_SEGMENTATION = 1
 
 class ProtMembrans3d(EMProtocol, ProtTomoBase):
     """
@@ -111,43 +112,33 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
 
         src = tomo.getFileName()
         dst = os.path.join(tomoPath, tomId + '.mrc')
-        #os.symlink(src, dst)
+
         import shutil
 
         shutil.copy(src, dst)
         return tomoPath
 
     def segmentMembraneStep(self, tomId):
-        # say what the parameter says!!
+
         path =self.setupFolderStep(tomId)
         inputData = self.inTomograms.get()
-        #absolute_path = os.path.abspath(path)
-        print(tomId)
+
         tomo = inputData[{'_tsId': tomId}]
-        #print(absolute_path)
-        #TODO
-        if self.typeOfSegmentation.get() == 0:
+
+        if self.typeOfSegmentation.get() == INSTANCE_SEGMENTATION:
             outFileName = 'mrc_mrc'
-        elif self.typeOfSegmentation.get() == 1:
+        elif self.typeOfSegmentation.get() == SEMANTIC_SEGMENTATION:
             outFileName = 'mrc_None'
-        else:
-            if self.typeOfSegmentation.get() == 2:
-                pass
-        #path= tomo
-        #tomoBaseName = removeBaseExt(tomofilename)
+
+
         inputFilename = tomId + '.mrc'
         tsIdFolder = self._getExtraPath(tomId)
 
-        #TODO Create symbollic 
-        #args = ' -dir %s' %absolute_path
-        #args += ' -out %s' %outFileName
         args =  ' -dir %s -out %s ' % (inputFilename, outFileName)
         args += ' -px %f ' % inputData.getSamplingRate()
         args += ' -dt %f ' % self.dt.get()
 
         Plugin.runTardis(self, 'tardis_mem', args,  cwd=tsIdFolder)
-        #self.runJob("tardis_mem", args)
-
 
 
     def createOutputStep(self): 
@@ -163,17 +154,22 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
         inTomoSet = self.inTomograms.get()
         tomoMaskSet.copyInfo(inTomoSet)
         counter = 1
+        
+        segType = '_semantic'
+           
 
         output_format ='mrc'
 
         for inTomo in inTomoSet:
             tomoMask = TomoMask()
             tomId = inTomo.getTsId()
-            fn = os.path.join(self._getExtraPath(tomId), tomId + '.mrc')
-            #fn = self._getExtraPath(tomId)
+            fn = os.path.join(self._getExtraPath(tomId, 'Predictions'), tomId + segType +'.mrc')
 
+
+            tomoMask.setLocation((counter, fn))
+            tomoMask.setVolName(self._getExtraPath(replaceBaseExt(fn, 'mrc')))
             tomoMask.copyInfo(inTomo)
-            #tomoMask.setLocation((counter, file))
+
             tomoMask.setVolName(fn)
             tomoMaskSet.append(tomoMask)
             counter += 1
