@@ -71,7 +71,9 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
                       pointerClass='SetOfTomograms',
                       allowsNull=False,
                       label='Input tomograms')
-
+        # TODO: Raquel add param to choose the operation method
+        # TODO: Raquel remove the csv stuff
+        # TODO: Raquel target: 1 protocol with 2 operation modes
         form.addParam('additionalArgs', StringParam,
                       default="",
                       expertLevel=LEVEL_ADVANCED,
