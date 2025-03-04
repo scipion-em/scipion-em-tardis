@@ -30,7 +30,7 @@
 Describe your python module here:
 This module will provide the traditional Hello world example
 """
-from pyworkflow.protocol import params, Integer, PointerParam, BooleanParam, IntParam, FloatParam, StringParam, \
+from pyworkflow.protocol import  Integer, PointerParam, EnumParam, BooleanParam, IntParam, FloatParam, StringParam, \
     LEVEL_ADVANCED
 from pyworkflow.utils import Message, makePath, replaceBaseExt
 from pwem.protocols import EMProtocol
@@ -78,12 +78,12 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
 
         # TODO: Raquel add param to choose the operation method
         # Select segmentation type (Membrane or Microtubule)
-        form.addParam('segmentationType', params.EnumParam,
+        form.addParam('segmentationType', EnumParam,
                       choices=['Membrane segmentation',
                                'Microtubule segmentation'],
                       default=MEMBRANE_SEGMENTATION,
                       label='Select segmentation type',
-                      display=params.EnumParam.DISPLAY_COMBO)
+                      display=EnumParam.DISPLAY_COMBO)
 
         form.addParam('additionalArgs', StringParam,
                       default="",
@@ -91,12 +91,12 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
                       label='Additional options',
                       help='You can enter additional command line options here.')
 
-        form.addParam('typeOfSegmentation', params.EnumParam,
+        form.addParam('typeOfSegmentation', EnumParam,
                       choices=['instance segmentation',
                                'semantic segmentation'],
                       default=INSTANCE_SEGMENTATION,
                       label='Choose type of output segmentation',
-                      display=params.EnumParam.DISPLAY_COMBO)
+                      display=EnumParam.DISPLAY_COMBO)
 
         form.addParam('dt', FloatParam,
                       default=0.9,
