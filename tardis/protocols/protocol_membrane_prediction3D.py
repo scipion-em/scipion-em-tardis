@@ -30,7 +30,8 @@
 Describe your python module here:
 This module will provide the traditional Hello world example
 """
-from pyworkflow.protocol import params, Integer, PointerParam, BooleanParam, IntParam, FloatParam, StringParam, LEVEL_ADVANCED
+from pyworkflow.protocol import params, Integer, PointerParam, BooleanParam, IntParam, FloatParam, StringParam, \
+    LEVEL_ADVANCED
 from pyworkflow.utils import Message, makePath, replaceBaseExt
 from pwem.protocols import EMProtocol
 from tomo.protocols.protocol_base import ProtTomoBase
@@ -38,12 +39,15 @@ from tomo.objects import SetOfTomoMasks, TomoMask
 from scipion.constants import PYTHON
 from tardis import Plugin
 import os
-import csv
 
 OUTPUT_TOMOMASK_NAME = 'tomoMasks'
 
 INSTANCE_SEGMENTATION = 0
 SEMANTIC_SEGMENTATION = 1
+
+MEMBRANE_SEGMENTATION = 0
+MICROTUBULE_SEGMENTATION = 1
+
 
 class ProtMembrans3d(EMProtocol, ProtTomoBase):
     """
@@ -71,14 +75,21 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
                       pointerClass='SetOfTomograms',
                       allowsNull=False,
                       label='Input tomograms')
+
         # TODO: Raquel add param to choose the operation method
-        # TODO: Raquel remove the csv stuff
-        # TODO: Raquel target: 1 protocol with 2 operation modes
+        # Select segmentation type (Membrane or Microtubule)
+        form.addParam('segmentationType', params.EnumParam,
+                      choices=['Membrane segmentation',
+                               'Microtubule segmentation'],
+                      default=MEMBRANE_SEGMENTATION,
+                      label='Select segmentation type',
+                      display=params.EnumParam.DISPLAY_COMBO)
+
         form.addParam('additionalArgs', StringParam,
                       default="",
                       expertLevel=LEVEL_ADVANCED,
                       label='Additional options',
-                      help='You can enter additional command line options to MemBrain here.')
+                      help='You can enter additional command line options here.')
 
         form.addParam('typeOfSegmentation', params.EnumParam,
                       choices=['instance segmentation',
@@ -86,20 +97,20 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
                       default=INSTANCE_SEGMENTATION,
                       label='Choose type of output segmentation',
                       display=params.EnumParam.DISPLAY_COMBO)
-        
+
         form.addParam('dt', FloatParam,
                       default=0.9,
-                      condition='typeOfSegmentation==%i'  % INSTANCE_SEGMENTATION,
+                      condition='typeOfSegmentation==%i' % INSTANCE_SEGMENTATION,
                       label='Threshold',
-                      help='You can enter additional command line options to MemBrain here.')
+                      help='You can enter additional command line options here.')
 
     # --------------------------- STEPS functions ------------------------------
     def _insertAllSteps(self):
         # Insert processing steps
         for i, tomo in enumerate(self.inTomograms.get()):
             tomId = tomo.getTsId()
-            self._insertFunctionStep(self.segmentMembraneStep
-                        , tomId)
+            self._insertFunctionStep(self.segmentStep
+                                     , tomId)
 
             self._insertFunctionStep(self.createOutputStep)
 
@@ -120,9 +131,9 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
         shutil.copy(src, dst)
         return tomoPath
 
-    def segmentMembraneStep(self, tomId):
+    def segmentStep(self, tomId):
 
-        path =self.setupFolderStep(tomId)
+        path = self.setupFolderStep(tomId)
         inputData = self.inTomograms.get()
 
         tomo = inputData[{'_tsId': tomId}]
@@ -132,18 +143,19 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
         elif self.typeOfSegmentation.get() == SEMANTIC_SEGMENTATION:
             outFileName = 'mrc_None'
 
-
         inputFilename = tomId + '.mrc'
         tsIdFolder = self._getExtraPath(tomId)
 
-        args =  ' -dir %s -out %s ' % (inputFilename, outFileName)
+        args = ' -dir %s -out %s ' % (inputFilename, outFileName)
         args += ' -px %f ' % inputData.getSamplingRate()
         args += ' -dt %f ' % self.dt.get()
 
-        Plugin.runTardis(self, 'tardis_mem', args,  cwd=tsIdFolder)
+        if self.segmentationType.get() == MEMBRANE_SEGMENTATION:
+            Plugin.runTardis(self, 'tardis_mem', args, cwd=tsIdFolder)
+        elif self.segmentationType.get() == MICROTUBULE_SEGMENTATION:
+            Plugin.runTardis(self, 'tardis_mt', args, cwd=tsIdFolder)
 
-
-    def createOutputStep(self): 
+    def createOutputStep(self):
         labelledSet = self._genOutputSetOfTomoMasks(
             self.tomoMaskList, 'segmented')
         self._defineOutputs(**{OUTPUT_TOMOMASK_NAME: labelledSet})
@@ -156,17 +168,15 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
         inTomoSet = self.inTomograms.get()
         tomoMaskSet.copyInfo(inTomoSet)
         counter = 1
-        
-        segType = '_semantic'
-           
 
-        output_format ='mrc'
+        segType = '_semantic'
+
+        output_format = 'mrc'
 
         for inTomo in inTomoSet:
             tomoMask = TomoMask()
             tomId = inTomo.getTsId()
-            fn = os.path.join(self._getExtraPath(tomId, 'Predictions'), tomId + segType +'.mrc')
-
+            fn = os.path.join(self._getExtraPath(tomId, 'Predictions'), tomId + segType + '.mrc')
 
             tomoMask.setLocation((counter, fn))
             tomoMask.setVolName(self._getExtraPath(replaceBaseExt(fn, 'mrc')))
@@ -178,11 +188,8 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
 
         return tomoMaskSet
 
-
-
         # register how many times the message has been printed
         # Now count will be an accumulated value
-
 
     # --------------------------- INFO functions -----------------------------------
     def _summary(self):

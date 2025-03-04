@@ -30,21 +30,29 @@
 Describe your python module here:
 This module will provide the traditional Hello world example
 """
-import os
-import csv
-from pyworkflow.utils import Message, makePath
+from pyworkflow.protocol import params, Integer, PointerParam, BooleanParam, IntParam, FloatParam, StringParam, LEVEL_ADVANCED
+from pyworkflow.utils import Message, makePath, replaceBaseExt
 from pwem.protocols import EMProtocol
 from tomo.protocols.protocol_base import ProtTomoBase
-from pyworkflow.protocol import params, Integer, PointerParam, BooleanParam, IntParam, FloatParam, StringParam, LEVEL_ADVANCED
-from tomo.objects import SetOfTomograms, SetOfTomoMasks
+from tomo.objects import SetOfTomoMasks, TomoMask
+from scipion.constants import PYTHON
 from tardis import Plugin
+import os
 
 OUTPUT_TOMOMASK_NAME = 'tomoMasks'
 
 INSTANCE_SEGMENTATION = 0
+SEMANTIC_SEGMENTATION = 1
 
-class ProtMicro3d(EMProtocol, ProtTomoBase):
-    _label = 'microtubule segmentation'
+MEMBRANE_SEGMENTATION = 2
+MICROTUBULE_SEGMENTATION = 3
+
+class ProtMembrans3d(EMProtocol, ProtTomoBase):
+    """
+    This protocol will print hello world in the console
+    IMPORTANT: Classes names should be unique, better prefix them
+    """
+    _label = 'tomogram membrane segmentation'
     _possibleOutputs = {OUTPUT_TOMOMASK_NAME: SetOfTomoMasks}
 
     tomoMaskList = []
@@ -66,11 +74,20 @@ class ProtMicro3d(EMProtocol, ProtTomoBase):
                       allowsNull=False,
                       label='Input tomograms')
 
+        # TODO: Raquel add param to choose the operation method
+        # Select segmentation type (Membrane or Microtubule)
+        form.addParam('segmentationType', params.EnumParam,
+                      choices=['Membrane segmentation',
+                               'Microtubule segmentation'],
+                      default=MEMBRANE_SEGMENTATION,
+                      label='Select segmentation type',
+                      display=params.EnumParam.DISPLAY_COMBO)
+
         form.addParam('additionalArgs', StringParam,
                       default="",
                       expertLevel=LEVEL_ADVANCED,
                       label='Additional options',
-                      help='You can enter additional command line options to MemBrain here.')
+                      help='You can enter additional command line options here.')
 
         form.addParam('typeOfSegmentation', params.EnumParam,
                       choices=['instance segmentation',
@@ -78,25 +95,22 @@ class ProtMicro3d(EMProtocol, ProtTomoBase):
                       default=INSTANCE_SEGMENTATION,
                       label='Choose type of output segmentation',
                       display=params.EnumParam.DISPLAY_COMBO)
-
+        
         form.addParam('dt', FloatParam,
                       default=0.9,
-                      condition='typeOfSegmentation==%i' % INSTANCE_SEGMENTATION,
+                      condition='typeOfSegmentation==%i'  % INSTANCE_SEGMENTATION,
                       label='Threshold',
-                      help='You can enter additional command line options to MemBrain here.') 
+                      help='You can enter additional command line options here.')
 
     # --------------------------- STEPS functions ------------------------------
     def _insertAllSteps(self):
         # Insert processing steps
         for i, tomo in enumerate(self.inTomograms.get()):
-            self._insertFunctionStep(self.segmentMicrotubuleStep,
-                        tomo.getTsId())
+            tomId = tomo.getTsId()
+            self._insertFunctionStep(self.segmentStep
+                            , tomId)
 
-        self._insertFunctionStep(self.createOutputStep)
-
-
-
-
+            self._insertFunctionStep(self.createOutputStep)
 
     def setupFolderStep(self, tomId):
         # Creating the tomogram folder
@@ -109,86 +123,78 @@ class ProtMicro3d(EMProtocol, ProtTomoBase):
 
         src = tomo.getFileName()
         dst = os.path.join(tomoPath, tomId + '.mrc')
-        #os.symlink(src, dst)
+
         import shutil
 
         shutil.copy(src, dst)
         return tomoPath
 
-    def segmentMicrotubuleStep(self, tomId):
-        # say what the parameter says!!
+    def segmentStep(self, tomId):
+
         path =self.setupFolderStep(tomId)
         inputData = self.inTomograms.get()
-        #absolute_path = os.path.abspath(path)
-        print(tomId)
+
         tomo = inputData[{'_tsId': tomId}]
-        #print(absolute_path)
-        #TODO
-        if self.typeOfSegmentation.get() == 0:
+
+        if self.typeOfSegmentation.get() == INSTANCE_SEGMENTATION:
             outFileName = 'mrc_mrc'
-        elif self.typeOfSegmentation.get() == 1:
+        elif self.typeOfSegmentation.get() == SEMANTIC_SEGMENTATION:
             outFileName = 'mrc_None'
-        else:
-            if self.typeOfSegmentation.get() == 2:
-                pass
-        #path= tomo
-        #tomoBaseName = removeBaseExt(tomofilename)
+
+
         inputFilename = tomId + '.mrc'
         tsIdFolder = self._getExtraPath(tomId)
-
-
 
         args =  ' -dir %s -out %s ' % (inputFilename, outFileName)
         args += ' -px %f ' % inputData.getSamplingRate()
         args += ' -dt %f ' % self.dt.get()
 
-        Plugin.runTardis(self, 'tardis_mt', args,  cwd=tsIdFolder)
+        if self.segmentationType.get() == MEMBRANE_SEGMENTATION:
+            Plugin.runTardis(self, 'tardis_mem', args,  cwd=tsIdFolder)
+        elif self.segmentationType.get() == MICROTUBULE_SEGMENTATION:
+            Plugin.runTardis(self, 'tardis_mt', args,  cwd=tsIdFolder)
 
 
-    def createOutputStep(self):
-        # register how many times the message has been printed
-        # Now count will be an accumulated value
+    def createOutputStep(self): 
         labelledSet = self._genOutputSetOfTomoMasks(
             self.tomoMaskList, 'segmented')
         self._defineOutputs(**{OUTPUT_TOMOMASK_NAME: labelledSet})
         self._defineSourceRelation(self.inTomograms.get(), labelledSet)
 
     def _genOutputSetOfTomoMasks(self, tomoMaskList, suffix):
+
         tomoMaskSet = SetOfTomoMasks.create(
             self._getPath(), template='tomomasks%s.sqlite', suffix=suffix)
         inTomoSet = self.inTomograms.get()
         tomoMaskSet.copyInfo(inTomoSet)
         counter = 1
         
-        if output_format == 'csv':
-            csv_filename = os.path.join(self._getPath(), f'tomomasks_{suffix}.csv')
-            with open(csv_filename, 'w', newline='') as csvfile:
-                fieldnames = ['counter', 'file', 'volume_name']
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                writer.writeheader()
+        segType = '_semantic'
+           
 
-                for file, inTomo in zip(tomoMaskList, inTomoSet):
-                    tomoMask = TomoMask()
-                    fn = inTomo.getFileName()
-                    tomoMask.copyInfo(inTomo)
-                    tomoMask.setLocation((counter, file))
-                    vol_name = self._getExtraPath(replaceBaseExt(fn, 'csv'))
-                    tomoMask.setVolName(vol_name)
-                    tomoMaskSet.append(tomoMask)
+        output_format ='mrc'
 
-                    writer.writerow({'counter': counter, 'file': file, 'volume_name': vol_name})
-                    counter += 1
-        else:
-            for file, inTomo in zip(tomoMaskList, inTomoSet):
-                tomoMask = TomoMask()
-                fn = inTomo.getFileName()
-                tomoMask.copyInfo(inTomo)
-                tomoMask.setLocation((counter, file))
-                tomoMask.setVolName(self._getExtraPath(replaceBaseExt(fn, 'mrc')))
-                tomoMaskSet.append(tomoMask)
-                counter += 1
+        for inTomo in inTomoSet:
+            tomoMask = TomoMask()
+            tomId = inTomo.getTsId()
+            fn = os.path.join(self._getExtraPath(tomId, 'Predictions'), tomId + segType +'.mrc')
+
+
+            tomoMask.setLocation((counter, fn))
+            tomoMask.setVolName(self._getExtraPath(replaceBaseExt(fn, 'mrc')))
+            tomoMask.copyInfo(inTomo)
+
+            tomoMask.setVolName(fn)
+            tomoMaskSet.append(tomoMask)
+            counter += 1
 
         return tomoMaskSet
+
+
+
+        # register how many times the message has been printed
+        # Now count will be an accumulated value
+
 
     # --------------------------- INFO functions -----------------------------------
     def _summary(self):
