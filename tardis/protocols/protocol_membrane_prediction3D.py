@@ -25,18 +25,12 @@
 # *
 # **************************************************************************
 
-
-"""
-Describe your python module here:
-This module will provide the traditional Hello world example
-"""
-from pyworkflow.protocol import  Integer, PointerParam, EnumParam, BooleanParam, IntParam, FloatParam, StringParam, \
-    LEVEL_ADVANCED
-from pyworkflow.utils import Message, makePath, replaceBaseExt
+from pyworkflow.protocol import  PointerParam, EnumParam, FloatParam, StringParam, LEVEL_ADVANCED
+from pyworkflow.utils import replaceBaseExt
 from pwem.protocols import EMProtocol
 from tomo.protocols.protocol_base import ProtTomoBase
 from tomo.objects import SetOfTomoMasks, TomoMask
-from scipion.constants import PYTHON
+from pyworkflow.utils import Message, makePath
 from tardis import Plugin
 import os
 
@@ -49,12 +43,12 @@ MEMBRANE_SEGMENTATION = 0
 MICROTUBULE_SEGMENTATION = 1
 
 
-class ProtMembrans3d(EMProtocol, ProtTomoBase):
+class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
     """
     This protocol will print hello world in the console
     IMPORTANT: Classes names should be unique, better prefix them
     """
-    _label = 'tomogram membrane segmentation'
+    _label = 'tomogram segmentation'
     _possibleOutputs = {OUTPUT_TOMOMASK_NAME: SetOfTomoMasks}
 
     tomoMaskList = []
@@ -85,12 +79,6 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
                       label='Select segmentation type',
                       display=EnumParam.DISPLAY_COMBO)
 
-        form.addParam('additionalArgs', StringParam,
-                      default="",
-                      expertLevel=LEVEL_ADVANCED,
-                      label='Additional options',
-                      help='You can enter additional command line options here.')
-
         form.addParam('typeOfSegmentation', EnumParam,
                       choices=['instance segmentation',
                                'semantic segmentation'],
@@ -104,13 +92,18 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
                       label='Threshold',
                       help='You can enter additional command line options here.')
 
+        form.addParam('additionalArgs', StringParam,
+                      default="",
+                      expertLevel=LEVEL_ADVANCED,
+                      label='Additional options',
+                      help='You can enter additional command line options here.')
+
     # --------------------------- STEPS functions ------------------------------
     def _insertAllSteps(self):
         # Insert processing steps
         for i, tomo in enumerate(self.inTomograms.get()):
             tomId = tomo.getTsId()
-            self._insertFunctionStep(self.segmentStep
-                                     , tomId)
+            self._insertFunctionStep(self.segmentStep, tomId)
 
             self._insertFunctionStep(self.createOutputStep)
 
@@ -133,10 +126,10 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
 
     def segmentStep(self, tomId):
 
-        path = self.setupFolderStep(tomId)
+        #path = self.setupFolderStep(tomId)
         inputData = self.inTomograms.get()
 
-        tomo = inputData[{'_tsId': tomId}]
+        #tomo = inputData[{'_tsId': tomId}]
 
         if self.typeOfSegmentation.get() == INSTANCE_SEGMENTATION:
             outFileName = 'mrc_mrc'
@@ -156,15 +149,13 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
             Plugin.runTardis(self, 'tardis_mt', args, cwd=tsIdFolder)
 
     def createOutputStep(self):
-        labelledSet = self._genOutputSetOfTomoMasks(
-            self.tomoMaskList, 'segmented')
+        labelledSet = self._genOutputSetOfTomoMasks(self.tomoMaskList, 'segmented')
         self._defineOutputs(**{OUTPUT_TOMOMASK_NAME: labelledSet})
         self._defineSourceRelation(self.inTomograms.get(), labelledSet)
 
     def _genOutputSetOfTomoMasks(self, tomoMaskList, suffix):
 
-        tomoMaskSet = SetOfTomoMasks.create(
-            self._getPath(), template='tomomasks%s.sqlite', suffix=suffix)
+        tomoMaskSet = SetOfTomoMasks.create(self._getPath(), template='tomomasks%s.sqlite', suffix=suffix)
         inTomoSet = self.inTomograms.get()
         tomoMaskSet.copyInfo(inTomoSet)
         counter = 1
@@ -188,25 +179,15 @@ class ProtMembrans3d(EMProtocol, ProtTomoBase):
 
         return tomoMaskSet
 
-        # register how many times the message has been printed
-        # Now count will be an accumulated value
 
     # --------------------------- INFO functions -----------------------------------
     def _summary(self):
         """ Summarize what the protocol has done"""
         summary = []
 
-        if self.isFinished():
-            summary.append("This protocol has printed *%s* %i times." % (self.message, self.times))
         return summary
 
     def _methods(self):
         methods = []
 
-        if self.isFinished():
-            methods.append("%s has been printed in this run %i times." % (self.message, self.times))
-            if self.previousCount.hasPointer():
-                methods.append("Accumulated count from previous runs were %i."
-                               " In total, %s messages has been printed."
-                               % (self.previousCount, self.count))
         return methods

@@ -4,5 +4,4 @@
 # Find documentation here: https://scipion-em.github.io/docs/docs/developer/creating-a-protocol
 # **************************************************************************
 
-from .protocol_membrane_prediction3D import ProtMembrans3d
-from .protocol_microtubule_prediction3D import ProtMicro3d
+from .protocol_membrane_prediction3D import ProtTardisMembrans3d
