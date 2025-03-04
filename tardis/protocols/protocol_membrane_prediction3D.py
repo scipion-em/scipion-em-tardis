@@ -128,12 +128,14 @@ class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
         _ = self.setupFolderStep(tomId)
         inputData = self.inTomograms.get()
 
-        #tomo = inputData[{'_tsId': tomId}]
+        tomo = inputData[{'_tsId': tomId}]
 
         if self.typeOfSegmentation.get() == INSTANCE_SEGMENTATION:
             outFileName = 'mrc_mrc'
         elif self.typeOfSegmentation.get() == SEMANTIC_SEGMENTATION:
             outFileName = 'mrc_None'
+
+        _= tomo
 
         inputFilename = tomId + '.mrc'
         tsIdFolder = self._getExtraPath(tomId)
