@@ -113,7 +113,6 @@ class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
         makePath(tomoPath)
 
         inputData = self.inTomograms.get()
-        print(tomId)
         tomo = inputData[{'_tsId': tomId}]
 
         src = tomo.getFileName()
@@ -126,7 +125,7 @@ class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
 
     def segmentStep(self, tomId):
 
-        #path = self.setupFolderStep(tomId)
+        _ = self.setupFolderStep(tomId)
         inputData = self.inTomograms.get()
 
         #tomo = inputData[{'_tsId': tomId}]
