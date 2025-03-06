@@ -72,7 +72,7 @@ class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
 
         # TODO: Raquel add param to choose the operation method
         # Select segmentation type (Membrane or Microtubule)
-        form.addParam('segmentationType', EnumParam,
+        form.addParam('whatSegment', EnumParam,
                       choices=['Membrane segmentation',
                                'Microtubule segmentation'],
                       default=MEMBRANE_SEGMENTATION,
@@ -144,9 +144,9 @@ class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
         args += ' -px %f ' % inputData.getSamplingRate()
         args += ' -dt %f ' % self.dt.get()
 
-        if self.segmentationType.get() == MEMBRANE_SEGMENTATION:
+        if self.whatSegment.get() == MEMBRANE_SEGMENTATION:
             Plugin.runTardis(self, 'tardis_mem', args, cwd=tsIdFolder)
-        elif self.segmentationType.get() == MICROTUBULE_SEGMENTATION:
+        elif self.whatSegment.get() == MICROTUBULE_SEGMENTATION:
             Plugin.runTardis(self, 'tardis_mt', args, cwd=tsIdFolder)
 
     def createOutputStep(self):

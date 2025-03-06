@@ -70,21 +70,26 @@ class TestSegmentation3D(TestBaseCentralizedLayer):
 
         protSegTomo = cls.newProtocol(ProtTardisMembrans3d,
                                       inTomograms=inTomograms,
-                                      segmentationType= recMethod,
-                                      typeOfSegmentation= segMethod,
-                                      dt = dt)
+                                      whatSegment= recMethod,
+                                      typeOfSegmentation= segMethod)
 
         protSegTomo.setObjLabel(f'Tomo seg {objectLabel}')
-        cls.launchProtocol()
+        cls.launchProtocol(protSegTomo)
         outTomos = getattr(protSegTomo,protSegTomo.tomograms.name, None)
         return outTomos
 
     #TODO: add def checkTomoMasks, add vol
-   # def _checkTomos(self, inTomoSet):
-    #    self.checkTomograms(inTomoSet,
-    #                        expectedSetSize=self.nTomos,
-    #                        expectedSRate=self.bin4SRate,
-   #                         expectedDimensions=self.tomoDimsThk300)
+    def _checkTomos(self, inTomoSet):
+        self.checkTomograms(inTomoSet,
+                            expectedSetSize=self.nTomos,
+                            expectedSRate=self.bin4SRate,
+                            expectedDimensions=self.tomoDimsThk300)
 
     def testMembraneSegmentation(self):
-        segTomo = self._runTardis(inTomograms=self.importedTomo, recMethod=None, segMethod=None, dt= None, objectLabel= None)
+
+        instanceOrSemantic = [INSTANCE_SEGMENTATION, SEMANTIC_SEGMENTATION]
+        objectLabel =['INSTANCE_SEGMENTATION', 'SEMANTIC_SEGMENTATION']
+        whatSegment = MEMBRANE_SEGMENTATION
+        for segType in instanceOrSemantic:
+            segTomo = self._runTardis(inTomograms=self.importedTomo, whatSegment=whatSegment, typeOfSegmentation=segType, objectLabel= objectLabel[segType])
+            self._checkTomos(segTomo)
