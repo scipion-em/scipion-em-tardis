@@ -54,7 +54,7 @@ class TestSegmentation3D(TestBaseCentralizedLayer):
         print(magentaStr("\n==> Importing data - tomograms:"))
         protImportTomogram = cls.newProtocol(ProtImportTomograms,
                                              filesPath=cls.ds.getFile(DataSetEmd10439.tomoEmd10439.value),
-                                             samplingRate=DataSetEmd10439.tomoEmd10439.unbinnedSRate)
+                                             samplingRate=5.0)
 
         cls.launchProtocol(protImportTomogram)
         outputTomos = getattr(protImportTomogram, 'Tomograms', None)
