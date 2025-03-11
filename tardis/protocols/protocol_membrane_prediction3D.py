@@ -132,8 +132,10 @@ class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
 
         if self.typeOfSegmentation.get() == INSTANCE_SEGMENTATION:
             outFileName = 'mrc_mrc'
+            outFileName = 'mrc_csv'
         elif self.typeOfSegmentation.get() == SEMANTIC_SEGMENTATION:
             outFileName = 'mrc_None'
+            outFileName = 'mrc_csv'
 
         _= tomo
 
