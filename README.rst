@@ -34,9 +34,13 @@ To install in development mode
 
 Clone or download the plugin repository:
 
+.. code-block::
+
     git clone https://github.com/scipion-em/scipion-em-tardis.git
 
 Install the plugin in developer mode:
+
+.. code-block::
 
     scipion installp -p local/path/to/scipion-em-tardis --devel
 
