@@ -23,6 +23,7 @@ Installing the plugin
 ==========================
 
 In order to install the plugin follow these instructions:
+
 .. code-block::
     
     scipion installp -p scipion-em-tardis
@@ -53,11 +54,15 @@ The options available are dissected separately below for clarity:
 Tests
 ==========================
 The installation can be checked out running some tests. To list all of them, execute:
+
 .. code-block::
+
     scipion3 test --grep tardis
 
 To run all of them, execute:
+
 .. code-block::
+
     scipion3 tests --grep tardis --run
 
 ==========================
