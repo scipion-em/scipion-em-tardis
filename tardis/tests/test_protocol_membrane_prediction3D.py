@@ -32,7 +32,8 @@ from pyworkflow.utils import magentaStr
 from tomo.protocols import ProtImportTomograms
 from tomo.tests.test_base_centralized_layer import TestBaseCentralizedLayer
 from tardis.protocols.protocol_membrane_prediction3D import (ProtTardisMembrans3d, INSTANCE_SEGMENTATION,
-                                                    SEMANTIC_SEGMENTATION, MEMBRANE_SEGMENTATION, MICROTUBULE_SEGMENTATION, OUTPUT_TOMOMASK_NAME)
+                                                    SEMANTIC_SEGMENTATION, MEMBRANE_SEGMENTATION, MICROTUBULE_SEGMENTATION,
+                                                             OUTPUT_TOMOMASK_NAME)
 from tomo3d.protocols.protocol_base import outputTomo3dObjects
 from tomo.tests import EMD_10439, DataSetEmd10439
 
@@ -64,12 +65,15 @@ class TestMembrane3D(TestBaseCentralizedLayer):
         return outputTomos
 
     @classmethod
-    def _runTardis(cls, inTomograms=None, recMethod=None, segMethod=None, dt= None, objectLabel= None):
+    def _runTardis(cls, inTomograms=None, recMethod=None, segMethod=None):
         whatSegment = 'MEMBRANE_SEGMENTATION' if recMethod is MEMBRANE_SEGMENTATION else 'MICROTUBULE_SEGMENTATION'
 
-        print(magentaStr(f"\n==> Segmenting the tomograms using the method {whatSegment} :"))
-        #TODO: if instance .... else ...
-        #TODO: add to newProtocol dataset + height
+        if segMethod == INSTANCE_SEGMENTATION:
+            method = '-> Instance'
+        elif segMethod == SEMANTIC_SEGMENTATION:
+            method = '-> Semantic'
+
+        print(magentaStr(f"\n==> Segmenting the tomograms using the method {whatSegment} {method}:"))
 
         protSegTomo = cls.newProtocol(ProtTardisMembrans3d,
                                       inTomograms=inTomograms,
@@ -89,71 +93,72 @@ class TestMembrane3D(TestBaseCentralizedLayer):
 
     def testMembraneSegmentation(self):
          instanceOrSemantic = [INSTANCE_SEGMENTATION, SEMANTIC_SEGMENTATION]
-         objectLabel =['INSTANCE_SEGMENTATION', 'SEMANTIC_SEGMENTATION']
          whatSegment = MEMBRANE_SEGMENTATION
          for segType in instanceOrSemantic:
-             segTomo = self._runTardis(inTomograms=self.importedTomo, recMethod=whatSegment, segMethod=segType, objectLabel= None)
+             segTomo = self._runTardis(inTomograms=self.importedTomo, recMethod=whatSegment, segMethod=segType)
              print(segTomo)
              self._checkTomos(segTomo)
 
 ###############################################################################################
 
-# class TestMicrotubule3D(TestBaseCentralizedLayer):
-#
-#     @classmethod
-#     def setUpClass(cls):
-#         setupTestProject(cls)
-#         cls.ds = DataSet.getDataSet(EMD_10439)
-#         cls._runPreviousProtocols()
-#
-#     @classmethod
-#     def _runPreviousProtocols(cls):
-#
-#         cls.importedTomo = cls._importTomograms()
-#
-#     @classmethod
-#     def _importTomograms(cls):
-#         print(magentaStr("\n==> Importing data - tomograms:"))
-#         protImportTomogram = cls.newProtocol(ProtImportTomograms,
-#                                              filesPath=cls.ds.getFile(DataSetEmd10439.tomoEmd10439.value),
-#                                              samplingRate=5.0)
-#
-#         cls.launchProtocol(protImportTomogram)
-#         outputTomos = getattr(protImportTomogram, 'Tomograms', None)
-#         cls.assertIsNotNone(outputTomos, 'No tomograms were genetated.')
-#
-#         return outputTomos
-#
-#     @classmethod
-#     def _runTardis(cls, inTomograms=None, recMethod=None, segMethod=None, dt= None, objectLabel= None):
-#         whatSegment = 'MEMBRANE_SEGMENTATION' if recMethod is MEMBRANE_SEGMENTATION else 'MICROTUBULE_SEGMENTATION'
-#
-#         print(magentaStr(f"\n==> Segmenting the tomograms using the method {whatSegment} :"))
-#         #TODO: if instance .... else ...
-#         #TODO: add to newProtocol dataset + height
-#
-#         protSegTomo = cls.newProtocol(ProtTardisMembrans3d,
-#                                       inTomograms=inTomograms,
-#                                       whatSegment= recMethod,
-#                                       typeOfSegmentation= segMethod)
-#
-#         protSegTomo.setObjLabel(f'Tomo seg {whatSegment}')
-#         cls.launchProtocol(protSegTomo)
-#         outTomos = getattr(protSegTomo, OUTPUT_TOMOMASK_NAME, None)
-#         return outTomos
-#
-#     #TODO: add def checkTomoMasks, add vol
-#     def _checkTomos(self, inTomoSet):
-#         self.checkTomograms(inTomoSet,
-#                             expectedSetSize=inTomoSet.getSize(),
-#                             expectedSRate=inTomoSet.getSamplingRate())#                   expectedDimensions=inTomoSet.getFirstItems().getDimensions())
+class TestMicrotubule3D(TestBaseCentralizedLayer):
 
-    # def testMicrotubuleSegmentation(self):
-    #
-    #     instanceOrSemantic = [INSTANCE_SEGMENTATION, SEMANTIC_SEGMENTATION]
-    #     objectLabel =['INSTANCE_SEGMENTATION', 'SEMANTIC_SEGMENTATION']
-    #     whatSegment = MICROTUBULE_SEGMENTATION
-    #     for segType in instanceOrSemantic:
-    #         segTomo = self._runTardis(inTomograms=self.importedTomo, recMethod=whatSegment, segMethod=segType, objectLabel= None)
-    #         print(segTomo)
-    #         self._checkTomos(segTomo)
+    @classmethod
+    def setUpClass(cls):
+        setupTestProject(cls)
+        cls.ds = DataSet.getDataSet('microtubulos')
+        cls._runPreviousProtocols()
+
+    @classmethod
+    def _runPreviousProtocols(cls):
+
+        cls.importedTomo = cls._importTomograms()
+
+    @classmethod
+    def _importTomograms(cls):
+        print(magentaStr("\n==> Importing data - tomograms:"))
+        protImportTomogram = cls.newProtocol(ProtImportTomograms,
+                                             filesPath=cls.ds.getFile('micro'),
+                                             samplingRate=5.0)
+
+        cls.launchProtocol(protImportTomogram)
+        outputTomos = getattr(protImportTomogram, 'Tomograms', None)
+        cls.assertIsNotNone(outputTomos, 'No tomograms were genetated.')
+
+        return outputTomos
+
+    @classmethod
+    def _runTardis(cls, inTomograms=None, recMethod=None, segMethod=None):
+        whatSegment = 'MEMBRANE_SEGMENTATION' if recMethod is MEMBRANE_SEGMENTATION else 'MICROTUBULE_SEGMENTATION'
+
+        if segMethod == INSTANCE_SEGMENTATION:
+            method = '-> Instance'
+        elif segMethod == SEMANTIC_SEGMENTATION:
+            method = '-> Semantic'
+
+        print(magentaStr(f"\n==> Segmenting the tomograms using the method {whatSegment} {method}:"))
+
+        protSegTomo = cls.newProtocol(ProtTardisMembrans3d,
+                                      inTomograms=inTomograms,
+                                      whatSegment= recMethod,
+                                      typeOfSegmentation= segMethod)
+
+        protSegTomo.setObjLabel(f'Tomo seg {whatSegment}')
+        cls.launchProtocol(protSegTomo)
+        outTomos = getattr(protSegTomo, OUTPUT_TOMOMASK_NAME, None)
+        return outTomos
+
+
+    def _checkTomos(self, inTomoSet):
+        self.checkTomoMask(inTomoSet,
+                            expectedSetSize=inTomoSet.getSize(),
+                            expectedSRate=inTomoSet.getSamplingRate())#                   expectedDimensions=inTomoSet.getFirstItems().getDimensions())
+
+    def testMicrotubuleSegmentation(self):
+
+        instanceOrSemantic = [INSTANCE_SEGMENTATION, SEMANTIC_SEGMENTATION]
+        whatSegment = MICROTUBULE_SEGMENTATION
+        for segType in instanceOrSemantic:
+            segTomo = self._runTardis(inTomograms=self.importedTomo, recMethod=whatSegment, segMethod=segType)
+            print(segTomo)
+            self._checkTomos(segTomo)

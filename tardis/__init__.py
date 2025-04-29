@@ -61,7 +61,9 @@ class Plugin(pwem.Plugin):
 
     @classmethod
     def runTardis(cls, protocol, program, args, cwd=None, gpuId='0'):
-        fullProgram = '%s %s && %s' % (cls.getCondaActivationCmd(), cls.getTardisEnvActivation(), program)
+
+        cudaStr = f" && CUDA_VISIBLE_DEVICES=%(GPU)s {program} "
+        fullProgram = '%s %s %s' % (cls.getCondaActivationCmd(), cls.getTardisEnvActivation(), cudaStr)
         protocol.runJob(fullProgram, args, env=cls.getEnviron(gpuId=gpuId), cwd=cwd)
 
     @classmethod

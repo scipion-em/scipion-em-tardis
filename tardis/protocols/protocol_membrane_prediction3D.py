@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # **************************************************************************
 # *
-# * Authors:     raquel.fabra@estudiante.uam.es
+# * Authors:     Raquel Fabra López (raquel.fabra@estudiante.uam.es)
 # *
 # * Escuela Politécnica Superior (EPS)
 # *
@@ -25,23 +25,24 @@
 # *
 # **************************************************************************
 
-from pyworkflow.protocol import  PointerParam, EnumParam, FloatParam, StringParam, LEVEL_ADVANCED
+from pyworkflow.protocol import  PointerParam, EnumParam, FloatParam, StringParam, LEVEL_ADVANCED, GPU_LIST
 from pyworkflow.utils import replaceBaseExt
 from pwem.protocols import EMProtocol
 from tomo.protocols.protocol_base import ProtTomoBase
-from tomo.objects import SetOfTomoMasks, TomoMask
+from tomo.objects import SetOfTomoMasks, TomoMask, SetOfMeshes, MeshPoint
 from pyworkflow.utils import Message, makePath
 from tardis import Plugin
 import os
 
 OUTPUT_TOMOMASK_NAME = 'tomoMasks'
+OUTPUT_MESHES_NAME = 'meshes'
 
+# Variables globales 
 INSTANCE_SEGMENTATION = 0
 SEMANTIC_SEGMENTATION = 1
 
 MEMBRANE_SEGMENTATION = 0
 MICROTUBULE_SEGMENTATION = 1
-
 
 class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
     """
@@ -49,7 +50,7 @@ class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
     IMPORTANT: Classes names should be unique, better prefix them
     """
     _label = 'tomogram segmentation'
-    _possibleOutputs = {OUTPUT_TOMOMASK_NAME: SetOfTomoMasks}
+    _possibleOutputs = {OUTPUT_TOMOMASK_NAME: SetOfTomoMasks, OUTPUT_MESHES_NAME: SetOfMeshes}
 
     tomoMaskList = []
 
@@ -70,8 +71,6 @@ class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
                       allowsNull=False,
                       label='Input tomograms')
 
-        # TODO: Raquel add param to choose the operation method
-        # Select segmentation type (Membrane or Microtubule)
         form.addParam('whatSegment', EnumParam,
                       choices=['Membrane segmentation',
                                'Microtubule segmentation'],
@@ -98,6 +97,11 @@ class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
                       label='Additional options',
                       help='You can enter additional command line options here.')
 
+        form.addHidden(GPU_LIST, StringParam,
+                       default='0',
+                       label="Choose GPU IDs")
+        form.addParallelSection(threads=2, mpi=0)
+
     # --------------------------- STEPS functions ------------------------------
     def _insertAllSteps(self):
         # Insert processing steps
@@ -105,7 +109,7 @@ class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
             tomId = tomo.getTsId()
             self._insertFunctionStep(self.segmentStep, tomId)
 
-            self._insertFunctionStep(self.createOutputStep)
+        self._insertFunctionStep(self.createOutputStep)
 
     def setupFolderStep(self, tomId):
         # Creating the tomogram folder
@@ -131,10 +135,8 @@ class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
         tomo = inputData[{'_tsId': tomId}]
 
         if self.typeOfSegmentation.get() == INSTANCE_SEGMENTATION:
-            outFileName = 'mrc_mrc'
             outFileName = 'mrc_csv'
         elif self.typeOfSegmentation.get() == SEMANTIC_SEGMENTATION:
-            outFileName = 'mrc_None'
             outFileName = 'mrc_csv'
 
         _= tomo
@@ -145,6 +147,7 @@ class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
         args = ' -dir %s -out %s ' % (inputFilename, outFileName)
         args += ' -px %f ' % inputData.getSamplingRate()
         args += ' -dt %f ' % self.dt.get()
+        args += ' -dv gpu '
 
         if self.whatSegment.get() == MEMBRANE_SEGMENTATION:
             Plugin.runTardis(self, 'tardis_mem', args, cwd=tsIdFolder)
@@ -152,36 +155,65 @@ class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
             Plugin.runTardis(self, 'tardis_mt', args, cwd=tsIdFolder)
 
     def createOutputStep(self):
-        labelledSet = self._genOutputSetOfTomoMasks(self.tomoMaskList, 'segmented')
+
+        labelledSet = self._genOutputSet()
+
         self._defineOutputs(**{OUTPUT_TOMOMASK_NAME: labelledSet})
         self._defineSourceRelation(self.inTomograms.get(), labelledSet)
 
-    def _genOutputSetOfTomoMasks(self, tomoMaskList, suffix):
-
-        tomoMaskSet = SetOfTomoMasks.create(self._getPath(), template='tomomasks%s.sqlite', suffix=suffix)
+    def _genOutputSet(self):
         inTomoSet = self.inTomograms.get()
-        tomoMaskSet.copyInfo(inTomoSet)
-        counter = 1
+        if self.typeOfSegmentation.get() == SEMANTIC_SEGMENTATION:
+            output = SetOfTomoMasks.create(self._getPath(), template='tomomasks%s.sqlite', suffix='segmented')
+            output.copyInfo(inTomoSet)
+            counter = 1
+            for inTomo in inTomoSet:
+                tomoMask = TomoMask()
+                tomId = inTomo.getTsId()
+                fn = os.path.join(self._getExtraPath(tomId, 'Predictions'), tomId + segType + '.mrc')
 
-        segType = '_semantic'
+                tomoMask.setLocation((counter, fn))
+                tomoMask.setVolName(self._getExtraPath(replaceBaseExt(fn, 'mrc')))
+                tomoMask.copyInfo(inTomo)
 
-        output_format = 'mrc'
+                tomoMask.setVolName(fn)
+                tomoMaskSet.append(tomoMask)
+                counter += 1
 
-        for inTomo in inTomoSet:
-            tomoMask = TomoMask()
-            tomId = inTomo.getTsId()
-            fn = os.path.join(self._getExtraPath(tomId, 'Predictions'), tomId + segType + '.mrc')
+            return tomoMaskSet
+        else:
+            output = self._createSetOfMeshes(inTomoSet)
+            for inTomo in inTomoSet:
+                self.addMeshPoints(inTomo, coordinates, mesh)
 
-            tomoMask.setLocation((counter, fn))
-            tomoMask.setVolName(self._getExtraPath(replaceBaseExt(fn, 'mrc')))
-            tomoMask.copyInfo(inTomo)
 
-            tomoMask.setVolName(fn)
-            tomoMaskSet.append(tomoMask)
-            counter += 1
+        output.setSamplingRate(inTomoSet.getSamplingRate())
+        output.setStreamState(Set.STREAM_OPEN)
+        output.enableAppend()
 
-        return tomoMaskSet
 
+    def readCSVinstances(self, fnCsv):
+        pass
+        #return coords
+
+    def getOutputMeshes(self) -> SetOfMeshes:
+        output = self._createSetOfMeshes(self.inTomograms)
+        output.setSamplingRate(self.inTomograms.get().getSamplingRate())
+        output.setStreamState(Set.STREAM_OPEN)
+        output.enableAppend()
+
+        self._defineOutputs(**{self._possibleOutputs.Meshes.name: output})
+        self._defineSourceRelation(self.inputMasks, output)
+
+        return output
+
+    def addMeshPoints(self, tomogram, coordinates, mesh):
+        for m, z, y, x in coordinates:
+            point = MeshPoint()
+            point.setVolume(tomogram)
+            point.setGroupId(m)
+            point.setPosition(x, y, z, const.BOTTOM_LEFT_CORNER)
+            mesh.append(point)
 
     # --------------------------- INFO functions -----------------------------------
     def _summary(self):
