@@ -1,101 +1,85 @@
 =======================
-Scipion template plugin
+Scipion plugin for TARDIS
 =======================
+.. image:: https://img.shields.io/badge/python-3-blue.svg
+   :target: https://www.python.org/downloads/
+   :alt: Python 3
 
-This is a template plugin for **scipion**
+.. image:: https://img.shields.io/badge/License-GPLv3-blue.svg
+   :target: https://www.gnu.org/licenses/gpl-3.0
+   :alt: License: GPL v3
+
+This plugin allows to use `TARDIS <https://github.com/SMLC-NYSBC/TARDIS>`_ to run automatic membrane and microtubule
+segmentation for predicted semantic or instance segmentation on (cryo-)electron microscopy tomograms.
 
 ==========================
-Steps to adapt this plugin
+Installation
 ==========================
 
-IMPORTANT: To simplify the instructions all the commands would refer to an hypothetical new plugin name called "coolem".
-Note that you must replace "coolem" by your plugin name.
+You will need to use 3.0+ version of Scipion to be able to run these protocols.
 
-**Clone it:**
+==========================
+Installing the plugin
+==========================
 
-.. code-block::
-
-    git clone git@github.com:scipion-em/scipion-em-template.git scipion-em-coolem
-
-**Reset the git repo**
+In order to install the plugin follow these instructions:
 
 .. code-block::
-
-    cd scipion-em-coolem
-    rm -rf .git
-    git init
-
-**Empty CHANGES.txt**
-
-.. code-block::
-
-    rm CHANGES.txt && touch CHANGES.txt
-
-**Rename "myplugin" to coolem**
-
-.. code-block::
-
-    mv myplugin coolem
     
+    scipion installp -p scipion-em-tardis
 
-**Tidy up imports**
+==========================
+To install in development mode
+==========================
 
- IDE refactrization should rename at once the classes and the imports. Search in your IDE for "myplugin" and replace by *"coolem"*
-
-- coolem/protocols/protocol_hello_world.py:
- class MyPluginPrefixHelloWorld --> class CoolemPrefixHelloWorld
-
-- coolem/protocol/__init__.py:
- from .protocol_hello_world import MyPluginPrefixHelloWorld --> from .protocol_hello_world import CoolemPrefixHelloWorld
-
-- coolem/wizards/wizard_hello_world.py:
- _targets = [(MyPluginPrefixHelloWorld, ['message'])]  -->     _targets = [(CoolemPrefixHelloWorld, ['message'])]
- class MyPluginPrefixHelloWorldWizard --> class CoolemPrefixHelloWorldWizard
-
-- coolem/wizards/__init__.py:
- from .wizard_hello_world import MyPluginPrefixHelloWorldWizard  --> from .wizard_hello_world import CoolemPrefixHelloWorldWizard
-
-- protcocols.conf: rename MyPluginPrefixHelloWorld --> CoolemPrefixHelloWorld
-
-
-- setup.py: Update almost all values: name, description, ... Be sure to update package data
-.. code-block::
-
-    package_data={  # Optional
-       'coolem': ['icon.png', 'protocols.conf'],
-    }
-
-  and the entry point
-.. code-block::
-
-    entry_points={
-        'pyworkflow.plugin': 'coolem = coolem'
-    }
-
-**Install the plugin in devel mode**
+Clone or download the plugin repository:
 
 .. code-block::
 
-    scipion3 installp -p /home/me/scipion-em-coolem --devel
+    git clone https://github.com/scipion-em/scipion-em-tardis.git
 
-If installation fails, you can access pip options like:
+Install the plugin in developer mode:
 
 .. code-block::
 
-    scipion3 python -m pip ... (list, install, uninstall)
-    
+    scipion installp -p local/path/to/scipion-em-tardis --devel
 
-**Customize it**
+==========================
+Protocols
+==========================
 
-Replace icon.png with your logo and update the bibtex.py with your reference.
+This plugin integrates only one protocol to run membrane and/or microtubule segmentation. 
+The options available are dissected separately below for clarity:
 
-Get rid of this content and keep the readme informative
+* **Membrane segmentation:** Run semantic or instance segmentation on 3D membrane images. 
+* **Microtubule segmentation:** Run semantic or instance segmentation on 3D microtubule images. 
 
+==========================
+Tests
+==========================
+The installation can be checked out running some tests. To list all of them, execute:
 
-**Repository**
+.. code-block::
 
-To create the repository, following those guide depending the platform:
+    scipion3 test --grep tardis
 
-- GitHub: https://docs.github.com/en/get-started/quickstart/create-a-repo
-- GitLab https://docs.gitlab.com/ee/user/project/repository/
-- Bitbucket https://support.atlassian.com/bitbucket-cloud/docs/create-a-git-repository/
+To run all of them, execute:
+
+.. code-block::
+
+    scipion3 tests --grep tardis --run
+
+==========================
+Tutorial and test results
+==========================
+The tests generate a workflow that can be used as a guide for running membrane and/or microtubule segmentation.
+The input datasets used for running these tests were:
+
+- Membrane segmentation: `EMD_10439 <https://www.ebi.ac.uk/emdb/>`_.
+- Microtubule segmentation: `GMPCPP_S1_tomo1_rec <https://www.ebi.ac.uk/emdb/>`_.
+
+==========================
+References
+==========================
+- `TARDIS-em Documentation <https://smlc-nysbc.github.io/TARDIS/>`_. SMLC-NYSBC. (n.d.).
+- `TARDIS GitHub page <https://github.com/SMLC-NYSBC/TARDIS>`_.
