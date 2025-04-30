@@ -24,58 +24,108 @@
 # *  e-mail address 'you@yourinstitution.email'
 # *
 # **************************************************************************
-from pyworkflow.protocol import Protocol, params, Integer
+from enum import Enum
+from os.path import join
+from typing import Union
+
+from pwem.protocols import EMProtocol
+from pyworkflow import BETA
+from pyworkflow.object import Pointer
+from pyworkflow.protocol import params, STEPS_PARALLEL, FloatParam, StringParam, LEVEL_ADVANCED, GE, \
+    LE, GPU_LIST
 from pyworkflow.utils import Message
+from tomo.objects import SetOfTomoMasks
 
-from .. import Plugin
+# Inputs
+IN_TOMOS = 'inputSetOfTomograms'
+SEG_MODE = 'segmentationType'
+
+# Segmentation types
+class TardisSegModes(Enum):
+    instance = 0
+    semantic = 1
+
+class TardisOutputs(Enum):
+    segmentations = SetOfTomoMasks
 
 
-class MembranePredictionBase(Protocol):
-    """
-    This protocol will print hello world in the console
-    IMPORTANT: Classes names should be unique, better prefix them
-    """
-    _label = 'membrane prediction 3D'
+class ProtTardisBase(EMProtocol):
+    _devStatus = BETA
+    _possibleOutputs = TardisOutputs
+    stepsExecutionMode = STEPS_PARALLEL
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.inTomosDict = None
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):
-        """ Define the input parameters that will be used.
-        Params:
-            form: this is the form to be populated with sections and params.
-        """
         # You need a params to belong to a section:
-        form.addSection(label='Input')
-        form.addParam('inputSetOfTomograms',
+        form.addSection(label=Message.LABEL_INPUT)
+        form.addParam(IN_TOMOS,
                       params.PointerParam,
                       pointerClass='SetOfTomograms',
                       important=True,
                       label='Tomograms',
-                      help='Set of tomogram to segment membranes.')
+                      help='Set of tomogram to be segmented.')
+
+        form.addParam(SEG_MODE, params.EnumParam,
+                      choices=[TardisSegModes.instance.name,
+                               TardisSegModes.semantic.name],
+                      default=TardisSegModes.instance.value,
+                      label='Choose type of output segmentation',
+                      display=params.EnumParam.DISPLAY_HLIST,
+                      help=('- Semantic segmentation:\n'
+                            'Classifies each pixel in an image into a category, grouping together all pixels '
+                            'that belong to the same object class, e. g., detects the membranes or '
+                            'microtubules.\n\n'
+                            '- Instance segmentation:\n'
+                            'Similar to semantic segmentation but goes a step further—it not only classifies '
+                            'objects but also differentiates between individual instances of the same category, '
+                            'e. g. the different membranes or microtubules.'))
+
+        form.addParam('dt', FloatParam,
+                      default=0.9,
+                      condition=f'{SEG_MODE}=={TardisSegModes.instance.value}',
+                      label='Threshold',
+                      validators=[GE(0),LE(1)],
+                      help='You can enter additional command line options here.')
+
+        form.addParam('additionalArgs', StringParam,
+                      default="",
+                      expertLevel=LEVEL_ADVANCED,
+                      label='Additional options',
+                      help='You can enter additional command line options here.')
+
+        form.addHidden(GPU_LIST, StringParam,
+                       default='0',
+                       label="Choose GPU IDs")
+        form.addParallelSection(threads=2, mpi=0)
 
     # --------------------------- STEPS functions ------------------------------
     def _insertAllSteps(self):
-        # Insert processing steps
-        self._insertFunctionStep(self.prepareDataStep)
-        self._insertFunctionStep(self.membraneSegmentationStep)
-        self._insertFunctionStep(self.createOutputStep)
+        closeSetDeps = []
+        self._initialize()
+        for tsId in self.inTomosDict.keys():
+            segId = self._insertFunctionStep(self.segmentStep, tsId,
+                                             prerequisites=[],
+                                             needsGPU=True)
+            cOutId = self._insertFunctionStep(self.createOutputStep, tsId,
+                                              prerequisites=segId,
+                                              needsGPU=False)
+            closeSetDeps.append(cOutId)
+        self._insertFunctionStep(self._closeOutputSet)
 
-    def prepareDataStep(self):
-        fn = self.inputSetOfTomograms.get().getFileName()
-        return fn
+    def _initialize(self):
+        self.inTomosDict = {tomo.getTsId(): tomo.clone() for tomo in self.getInTomos()}
 
-    def membraneSegmentationStep(self, fn):
+    def segmentStep(self, tsId: str):
+        # It must be defined by the child classes
+        pass
 
-        pathDir = 'outFile.mrc'
-
-        params = ' -dir %s ' % fn
-        params = ' -out %s ' % pathDir
-        Plugin.runTardis('tardis_mem', )
-
-    def createOutputStep(self):
-        # register how many times the message has been printed
-        # Now count will be an accumulated value
-        timesPrinted = Integer(self.times.get() + self.previousCount.get())
-        self._defineOutputs(count=timesPrinted)
+    def createOutputStep(self, tsId: str):
+        # To be defined by the children classes
+        pass
 
     # --------------------------- INFO functions -----------------------------------
     def _summary(self):
@@ -96,3 +146,33 @@ class MembranePredictionBase(Protocol):
                                " In total, %s messages has been printed."
                                % (self.previousCount, self.count))
         return methods
+
+    # --------------------------- UTILS functions -----------------------------------
+    def getInTomos(self, returnPointer: bool = False) -> Union[SetOfTomoMasks, Pointer]:
+        inTomosPointer = getattr(self, IN_TOMOS)
+        return inTomosPointer if returnPointer else inTomosPointer.get()
+
+    def _getCurrentTomoDir(self, tsId: str) -> str:
+        return self._getExtraPath(tsId)
+
+    def _getCurrentTomoFile(self, tsId: str) -> str:
+        return join(self._getCurrentTomoDir(tsId), f'{tsId}.mrc')
+
+    def _getSegMode(self) -> str:
+        segMode = getattr(self, SEG_MODE).get()
+        return TardisSegModes.instance.name if segMode == TardisSegModes.instance.value else (
+            TardisOutputs.segmentations.name)
+
+    def _getOutputFileNameArg(self):
+        # To be defined by the children classes
+        pass
+
+    def _getCmdArgs(self, tsId: str) -> str:
+        tomo = self.inTomosDict[tsId]
+
+        args = [f'--path {self._getCurrentTomoFile(tsId)}',
+                f'--output_format {self._getOutputFileNameArg()}',
+                f'--correct_px {tomo.getSamplingRate():.3f}',
+                f'--dist_threshold {self.dt.get():.2f}',
+                f'--device gpu']
+        return ' '.join(args)

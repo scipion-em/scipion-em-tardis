@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-import tempfile
-
 # ***************************************************************************
 # *
 # * Authors:     Raquel Fabra López (raquel.fabra@estudiante.uam.es)
@@ -28,17 +25,15 @@ import tempfile
 # **************************************************************************
 from pyworkflow.tests import setupTestProject, DataSet
 from pyworkflow.utils import magentaStr
-
 from tomo.protocols import ProtImportTomograms
 from tomo.tests.test_base_centralized_layer import TestBaseCentralizedLayer
-from tardis.protocols.protocol_membrane_prediction3D import (ProtTardisMembrans3d, INSTANCE_SEGMENTATION,
-                                                    SEMANTIC_SEGMENTATION, MEMBRANE_SEGMENTATION, MICROTUBULE_SEGMENTATION,
+from tardis.protocols.protocol_membrane_prediction3D import (ProtTardisMembransSeg, INSTANCE_SEGMENTATION,
+                                                             SEMANTIC_SEGMENTATION, MEMBRANE_SEGMENTATION, MICROTUBULE_SEGMENTATION,
                                                              OUTPUT_TOMOMASK_NAME)
-from tomo3d.protocols.protocol_base import outputTomo3dObjects
 from tomo.tests import EMD_10439, DataSetEmd10439
 
 
-class TestMembrane3D(TestBaseCentralizedLayer):
+class TestTardisMembraneSeg(TestBaseCentralizedLayer):
 
     @classmethod
     def setUpClass(cls):
@@ -75,7 +70,7 @@ class TestMembrane3D(TestBaseCentralizedLayer):
 
         print(magentaStr(f"\n==> Segmenting the tomograms using the method {whatSegment} {method}:"))
 
-        protSegTomo = cls.newProtocol(ProtTardisMembrans3d,
+        protSegTomo = cls.newProtocol(ProtTardisMembransSeg,
                                       inTomograms=inTomograms,
                                       whatSegment= recMethod,
                                       typeOfSegmentation= segMethod)
@@ -101,12 +96,12 @@ class TestMembrane3D(TestBaseCentralizedLayer):
 
 ###############################################################################################
 
-class TestMicrotubule3D(TestBaseCentralizedLayer):
+class TestTardisMicrotubuleSeg(TestBaseCentralizedLayer):
 
     @classmethod
     def setUpClass(cls):
         setupTestProject(cls)
-        cls.ds = DataSet.getDataSet('microtubulos')
+        cls.ds = DataSet.getDataSet('microtubulesTomograms')
         cls._runPreviousProtocols()
 
     @classmethod
@@ -138,7 +133,7 @@ class TestMicrotubule3D(TestBaseCentralizedLayer):
 
         print(magentaStr(f"\n==> Segmenting the tomograms using the method {whatSegment} {method}:"))
 
-        protSegTomo = cls.newProtocol(ProtTardisMembrans3d,
+        protSegTomo = cls.newProtocol(ProtTardisMembransSeg,
                                       inTomograms=inTomograms,
                                       whatSegment= recMethod,
                                       typeOfSegmentation= segMethod)
