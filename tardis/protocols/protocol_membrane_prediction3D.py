@@ -25,12 +25,16 @@
 # *
 # **************************************************************************
 
+from pyworkflow.object import Set
+from pyworkflow.utils import Message, makePath
 from pyworkflow.protocol import  PointerParam, EnumParam, FloatParam, StringParam, LEVEL_ADVANCED, GPU_LIST
 from pyworkflow.utils import replaceBaseExt
 from pwem.protocols import EMProtocol
+
 from tomo.protocols.protocol_base import ProtTomoBase
+import tomo.constants as const
 from tomo.objects import SetOfTomoMasks, TomoMask, SetOfMeshes, MeshPoint
-from pyworkflow.utils import Message, makePath
+
 from tardis import Plugin
 import os
 
@@ -156,13 +160,8 @@ class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
 
     def createOutputStep(self):
 
-        labelledSet = self._genOutputSet()
-
-        self._defineOutputs(**{OUTPUT_TOMOMASK_NAME: labelledSet})
-        self._defineSourceRelation(self.inTomograms.get(), labelledSet)
-
-    def _genOutputSet(self):
         inTomoSet = self.inTomograms.get()
+        sampling = inTomoSet.getSamplingRate()
         if self.typeOfSegmentation.get() == SEMANTIC_SEGMENTATION:
             output = SetOfTomoMasks.create(self._getPath(), template='tomomasks%s.sqlite', suffix='segmented')
             output.copyInfo(inTomoSet)
@@ -180,39 +179,42 @@ class ProtTardisMembrans3d(EMProtocol, ProtTomoBase):
                 tomoMaskSet.append(tomoMask)
                 counter += 1
 
+            self._defineOutputs(**{OUTPUT_TOMOMASK_NAME: output})
+
             return tomoMaskSet
         else:
             output = self._createSetOfMeshes(inTomoSet)
+            output.setBoxSize(10)
             for inTomo in inTomoSet:
-                self.addMeshPoints(inTomo, coordinates, mesh)
+                tsId = inTomo.getTsId()
+                fnCsv = self._getExtraPath(tsId, 'Predictions', tsId+'_instances.csv')
+                coordinates = self.readCSVinstances(fnCsv)
+                self.addMeshPoints(inTomo, coordinates, output, sampling)
+            self._defineOutputs(**{OUTPUT_MESHES_NAME: output})
 
-
-        output.setSamplingRate(inTomoSet.getSamplingRate())
+        output.setSamplingRate(sampling)
         output.setStreamState(Set.STREAM_OPEN)
         output.enableAppend()
+
+        self._defineSourceRelation(self.inTomograms.get(), output)
 
 
     def readCSVinstances(self, fnCsv):
-        pass
-        #return coords
+        import csv
+        coords = []
+        with open(fnCsv, mode='r') as file:
+            csvFile = csv.reader(file)
+            next(csvFile)
+            for lines in csvFile:
+                coords.append(lines)
+        return coords
 
-    def getOutputMeshes(self) -> SetOfMeshes:
-        output = self._createSetOfMeshes(self.inTomograms)
-        output.setSamplingRate(self.inTomograms.get().getSamplingRate())
-        output.setStreamState(Set.STREAM_OPEN)
-        output.enableAppend()
-
-        self._defineOutputs(**{self._possibleOutputs.Meshes.name: output})
-        self._defineSourceRelation(self.inputMasks, output)
-
-        return output
-
-    def addMeshPoints(self, tomogram, coordinates, mesh):
+    def addMeshPoints(self, tomogram, coordinates, mesh, sampling):
         for m, z, y, x in coordinates:
             point = MeshPoint()
             point.setVolume(tomogram)
-            point.setGroupId(m)
-            point.setPosition(x, y, z, const.BOTTOM_LEFT_CORNER)
+            point.setGroupId(int(float(m)))
+            point.setPosition(float(z)/sampling, float(y)/sampling, float(x)/sampling, const.BOTTOM_LEFT_CORNER)
             mesh.append(point)
 
     # --------------------------- INFO functions -----------------------------------
