@@ -25,6 +25,7 @@
 # **************************************************************************
 from pyworkflow.tests import setupTestProject, DataSet
 from pyworkflow.utils import magentaStr
+from tardis.protocols.protocol_membrane_prediction_base import TardisSegModes
 from tomo.protocols import ProtImportTomograms
 from tomo.tests.test_base_centralized_layer import TestBaseCentralizedLayer
 from tardis.protocols.protocol_membrane_prediction3D import (ProtTardisMembransSeg, INSTANCE_SEGMENTATION,
@@ -106,7 +107,6 @@ class TestTardisMicrotubuleSeg(TestBaseCentralizedLayer):
 
     @classmethod
     def _runPreviousProtocols(cls):
-
         cls.importedTomo = cls._importTomograms()
 
     @classmethod
@@ -131,14 +131,13 @@ class TestTardisMicrotubuleSeg(TestBaseCentralizedLayer):
         elif segMethod == SEMANTIC_SEGMENTATION:
             method = '-> Semantic'
 
-        print(magentaStr(f"\n==> Segmenting the tomograms using the method {whatSegment} {method}:"))
+        # print(magentaStr(f"\n==> Segmenting the tomograms using the method {whatSegment} {method}:"))
 
         protSegTomo = cls.newProtocol(ProtTardisMembransSeg,
-                                      inTomograms=inTomograms,
-                                      whatSegment= recMethod,
-                                      typeOfSegmentation= segMethod)
+                                      inputSetOfTomograms=inTomograms,
+                                      segmentationType=TardisSegModes.semantic.value)
 
-        protSegTomo.setObjLabel(f'Tomo seg {whatSegment}')
+        # protSegTomo.setObjLabel(f'Tomo seg {whatSegment}')
         cls.launchProtocol(protSegTomo)
         outTomos = getattr(protSegTomo, OUTPUT_TOMOMASK_NAME, None)
         return outTomos

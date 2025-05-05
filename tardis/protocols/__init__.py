@@ -1,3 +1,1 @@
-from tardis.protocols.protocol_membrane_prediction3D import ProtTardisMembransSeg
-from tardis.protocols.protocol_microtubule_prediction3D import ProtTardisMicrotubuleSeg
-
+from tardis.protocols.protocol_membrane_prediction_base import ProtTardisSeg

@@ -33,12 +33,12 @@ This module will provide the traditional Hello world example
 from os.path import join
 from pyworkflow.object import Set
 from pyworkflow.utils import makePath, createLink
-from tardis.protocols.protocol_membrane_prediction_base import ProtTardisBase, SEG_MODE, TardisSegModes
+from tardis.protocols.protocol_membrane_prediction_base import ProtTardisSeg, SEG_MODE, TardisSegModes
 from tomo.objects import SetOfTomoMasks, TomoMask
 from tardis import Plugin
 
 
-class ProtTardisMicrotubuleSeg(ProtTardisBase):
+class ProtTardisMicrotubuleSeg(ProtTardisSeg):
     """
     This protocol will print hello world in the console
     IMPORTANT: Classes names should be unique, better prefix them
@@ -60,7 +60,7 @@ class ProtTardisMicrotubuleSeg(ProtTardisBase):
         Plugin.runTardis(self, self.program, args)#, cwd=self._getCurrentTomoDir(tsId))
 
     def createOutputStep(self, tsId):
-        with self._lock():
+        with self._lock:
             inTomo = self.inTomosDict[tsId]
             outputSet = self._getOutputSet()
             tomoMask = TomoMask()
@@ -104,9 +104,6 @@ class ProtTardisMicrotubuleSeg(ProtTardisBase):
     #     return methods
 
     # --------------------------- INFO functions -----------------------------------
-    def _getOutputFileNameArg(self) -> str:
-        return 'mrc_mrc' if getattr(self, SEG_MODE).get() == TardisSegModes.instance.value else 'mrc_None'
-
     def _getOutputFileName(self, tsId: str) -> str:
         return join(self._getExtraPath(tsId, 'Predictions'), f'{tsId}_{self._getSegMode()}.mrc')
 

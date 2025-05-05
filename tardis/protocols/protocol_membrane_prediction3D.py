@@ -24,38 +24,31 @@
 # *  e-mail address 'you@yourinstitution.email'
 # *
 # **************************************************************************
-
-from pyworkflow.object import Set
-from pyworkflow.utils import Message, makePath, createLink
-from pyworkflow.protocol import  PointerParam, EnumParam, FloatParam, StringParam, LEVEL_ADVANCED, GPU_LIST
-from pyworkflow.utils import replaceBaseExt
-from pwem.protocols import EMProtocol
-from tardis.protocols.protocol_membrane_prediction_base import ProtTardisBase
-
-from tomo.protocols.protocol_base import ProtTomoBase
+import shutil
+from pyworkflow.utils import makePath
+from tardis.protocols.protocol_membrane_prediction_base import ProtTardisSeg
 import tomo.constants as const
-from tomo.objects import SetOfTomoMasks, TomoMask, SetOfMeshes, MeshPoint
-
+from tomo.objects import SetOfTomoMasks, SetOfMeshes, MeshPoint
 from tardis import Plugin
-import os
 
-OUTPUT_TOMOMASK_NAME = 'tomoMasks'
-OUTPUT_MESHES_NAME = 'meshes'
 
-# Variables globales 
-INSTANCE_SEGMENTATION = 0
-SEMANTIC_SEGMENTATION = 1
+# OUTPUT_TOMOMASK_NAME = 'tomoMasks'
+# OUTPUT_MESHES_NAME = 'meshes'
+#
+# # Variables globales
+# INSTANCE_SEGMENTATION = 0
+# SEMANTIC_SEGMENTATION = 1
+#
+# MEMBRANE_SEGMENTATION = 0
+# MICROTUBULE_SEGMENTATION = 1
 
-MEMBRANE_SEGMENTATION = 0
-MICROTUBULE_SEGMENTATION = 1
-
-class ProtTardisMembransSeg(ProtTardisBase):
+class ProtTardisMembransSeg(ProtTardisSeg):
     """
     This protocol will print hello world in the console
     IMPORTANT: Classes names should be unique, better prefix them
     """
     _label = 'tomogram membranes segmentation'
-    _possibleOutputs = {OUTPUT_TOMOMASK_NAME: SetOfTomoMasks, OUTPUT_MESHES_NAME: SetOfMeshes}
+    # _possibleOutputs = {OUTPUT_TOMOMASK_NAME: SetOfTomoMasks, OUTPUT_MESHES_NAME: SetOfMeshes}
     program = 'tardis_mem'
 
     def __init__(self, **kwargs):
@@ -67,11 +60,12 @@ class ProtTardisMembransSeg(ProtTardisBase):
         tomo = self.inTomosDict[tsId]
         tomoPath = self._getExtraPath(tsId)
         makePath(tomoPath)
-        createLink(tomo.getFileName(), f'{tsId}.mrc')
+        # createLink(tomo.getFileName(), self._getCurrentTomoFile(tsId))
+        shutil.copy(tomo.getFileName(), self._getCurrentTomoFile(tsId))
         args = self._getCmdArgs(tsId)
-        Plugin.runTardis(self, self.program, args)
+        Plugin.runTardis(self, self.program, args, cwd=self._getCurrentTomoDir(tsId))
 
-    def createOutputStep(self):
+    def createOutputStep(self, tsId: str):
         pass
         # inTomoSet = self.inTomograms.get()
         # sampling = inTomoSet.getSamplingRate()
