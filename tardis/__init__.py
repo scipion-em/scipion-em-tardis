@@ -92,7 +92,7 @@ class Plugin(pwem.Plugin):
         installationCmd += f'conda activate {env_name} && '
 
         # Install downloaded code
-        installationCmd += 'pip install "tardis-em==0.3.11" && '
+        installationCmd += f'pip install "tardis-em=={TARDIS_VERSION}" && '
 
         # Flag installation finished
         installationCmd += f'touch {TARDIS_INSTALLED}'
