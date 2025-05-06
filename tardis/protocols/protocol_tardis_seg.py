@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # **************************************************************************
 # *
-# * Authors:     you (you@yourinstitution.email)
+# * Authors:    Scipion Team (scipion@cnb.csic.es)
 # *
-# * your institution
+# *  BCU, Centro Nacional de Biotecnologia, CSIC
 # *
 # * This program is free software; you can redistribute it and/or modify
 # * it under the terms of the GNU General Public License as published by
@@ -24,19 +24,23 @@
 # *  e-mail address 'you@yourinstitution.email'
 # *
 # **************************************************************************
-from collections import OrderedDict
+import logging
 from enum import Enum
 from os.path import join
 from typing import Union
-
+import numpy as np
 from pwem.protocols import EMProtocol
 from pyworkflow import BETA
-from pyworkflow.object import Pointer
-from pyworkflow.protocol import params, STEPS_PARALLEL, FloatParam, StringParam, LEVEL_ADVANCED, GE, \
+from pyworkflow.object import Pointer, Set
+from pyworkflow.protocol import STEPS_PARALLEL, FloatParam, StringParam, LEVEL_ADVANCED, GE, \
     LE, GPU_LIST, PointerParam, EnumParam, IntParam
-from pyworkflow.utils import Message, makePath, createLink
+from pyworkflow.utils import Message, makePath, createLink, cyanStr
 from tardis import Plugin
-from tomo.objects import SetOfTomoMasks, SetOfMeshes, TomoMask
+from tomo.constants import BOTTOM_LEFT_CORNER
+from tomo.objects import SetOfTomoMasks, SetOfMeshes, TomoMask, MeshPoint
+
+
+logger = logging.getLogger(__name__)
 
 # Inputs
 IN_TOMOS = 'inputSetOfTomograms'
@@ -51,22 +55,14 @@ class TardisSegTargets(Enum):
 
 # Segmentation modes
 class TardisSegModes(Enum):
-    instance = 0
+    instances = 0
     semantic = 1
+    both = 2
 
 # Protocol outputs
 class TardisOutputs(Enum):
     segmentations = SetOfTomoMasks
     meshes = SetOfMeshes
-
-# Patch size allowed values are 32, 64, 96, 128, 256, 512
-patchSizeValDict = OrderedDict()
-patchSizeValDict['32'] =  0
-patchSizeValDict['64'] =  1
-patchSizeValDict['96'] =  2
-patchSizeValDict['128'] =  3
-patchSizeValDict['256'] =  4
-patchSizeValDict['512'] =  5
 
 
 class ProtTardisSeg(EMProtocol):
@@ -99,9 +95,10 @@ class ProtTardisSeg(EMProtocol):
                       display=EnumParam.DISPLAY_HLIST)
 
         form.addParam(SEG_MODE, EnumParam,
-                      choices=[TardisSegModes.instance.name,
-                               TardisSegModes.semantic.name],
-                      default=TardisSegModes.instance.value,
+                      choices=[TardisSegModes.instances.name,
+                               TardisSegModes.semantic.name,
+                               TardisSegModes.both.name],
+                      default=TardisSegModes.both.value,
                       label='Choose type of output segmentation',
                       display=EnumParam.DISPLAY_HLIST,
                       help=('- Semantic segmentation:\n'
@@ -115,8 +112,8 @@ class ProtTardisSeg(EMProtocol):
         
         form.addParam('distThreshold', FloatParam,
                       default=0.9,
-                      condition=f'{SEG_MODE}=={TardisSegModes.instance.value}',
-                      label='Threshold used for instance prediction',
+                      condition=f'{SEG_MODE} in [{TardisSegModes.instances.value}, {TardisSegModes.both.value}]',
+                      label='Threshold for instance prediction',
                       validators=[GE(0),LE(1)],
                       help='Float value between 0.0 and 1.0. Higher value then 0.9 will lower number '
                            'of the predicted instances, a lower value will increase the number of '
@@ -124,26 +121,19 @@ class ProtTardisSeg(EMProtocol):
 
         form.addParam('cnnThreshold', FloatParam,
                       default=0.5,
-                      condition=f'{SEG_MODE}=={TardisSegModes.semantic.value}',
-                      label='Threshold used for semantic prediction',
+                      condition=f'{SEG_MODE} in [{TardisSegModes.semantic.value}, {TardisSegModes.both.value}]',
+                      label='Threshold for semantic prediction',
                       validators=[GE(0),LE(1)],
                       help='Float value between 0.0 and 1.0. Higher value than 0.5 will lead to a reduction '
                            'in noise and membrane prediction recall. A lower value will increase membrane '
                            'prediction recall but may lead to increased noise.')
 
-        form.addParam('patchSize', EnumParam,
-                      display=EnumParam.DISPLAY_COMBO,
-                      choices=list(patchSizeValDict.keys()),
-                      default=patchSizeValDict['128'],  # Patch of 128 px
-                      label='Window size used for prediction (px)',
-                      help='This will break tomograms into smaller patches with 25% overlap. Smaller '
-                           'values than 128 consume less GPU, but also may lead to worse segmentation results.')
-
-        form.addParam('additionalArgs', StringParam,
-                      default="",
+        form.addParam('boxSize', IntParam,
+                      label='Meshes box size (px)',
                       expertLevel=LEVEL_ADVANCED,
-                      label='Additional options',
-                      help='You can enter additional command line options here.')
+                      default=20,
+                      help='The box size is required at coordinates or meshes level by some visualization tools, '
+                           'such as Napari or Eman.')
 
         form.addHidden(GPU_LIST, StringParam,
                        default='0',
@@ -169,6 +159,7 @@ class ProtTardisSeg(EMProtocol):
         self.inTomosDict = {tomo.getTsId(): tomo.clone() for tomo in self.getInTomos()}
 
     def segmentStep(self, tsId: str):
+        logger.info(cyanStr(f'===> tsId = {tsId}: segmenting...'))
         tomo = self.inTomosDict[tsId]
         tomoPath = self._getExtraPath(tsId)
         makePath(tomoPath)
@@ -177,30 +168,18 @@ class ProtTardisSeg(EMProtocol):
         Plugin.runTardis(self, self.program, args, cwd=self._getCurrentTomoDir(tsId))
 
     def createOutputStep(self, tsId: str):
-        if self._segModeIsSemantic():
-            self._createSemanticOutput(tsId)
-        else:
-            self._createInstanceOutput(tsId)
+        logger.info(cyanStr(f'===> tsId = {tsId}: Creating the results...'))
+        with self._lock:
+            segMode = getattr(self, SEG_MODE).get()
+            if segMode == TardisSegModes.both.value:
+                self._createSemanticOutput(tsId)
+                self._createInstanceOutput(tsId)
+            elif segMode == TardisSegModes.semantic.value:
+                self._createSemanticOutput(tsId)
+            else:  # instance
+                self._createInstanceOutput(tsId)
 
-    # --------------------------- INFO functions -----------------------------------
-    # def _summary(self):
-    #     """ Summarize what the protocol has done"""
-    #     summary = []
-    #
-    #     if self.isFinished():
-    #         summary.append("This protocol has printed *%s* %i times." % (self.message, self.times))
-    #     return summary
-    #
-    # def _methods(self):
-    #     methods = []
-    #
-    #     if self.isFinished():
-    #         methods.append("%s has been printed in this run %i times." % (self.message, self.times))
-    #         if self.previousCount.hasPointer():
-    #             methods.append("Accumulated count from previous runs were %i."
-    #                            " In total, %s messages has been printed."
-    #                            % (self.previousCount, self.count))
-    #     return methods
+    # --------------------------- INFO functions ------------------------------------
 
     # --------------------------- UTILS functions -----------------------------------
     def getInTomos(self, returnPointer: bool = False) -> Union[SetOfTomoMasks, Pointer]:
@@ -216,41 +195,99 @@ class ProtTardisSeg(EMProtocol):
     def _segTargetIsMembrane(self) -> bool:
         return True if getattr(self, SEG_TARGET).get() == TardisSegTargets.membranes.value else False
 
-    def _segModeIsSemantic(self) -> bool:
-        return True if getattr(self, SEG_MODE).get() == TardisSegModes.semantic.value else False
-
-    # def _getSegMode(self) -> str:
-    #     segMode = getattr(self, SEG_MODE).get()
-    #     return TardisSegModes.instance.name if segMode == TardisSegModes.instance.value else (
-    #         TardisOutputs.segmentations.name)
-
-    def _getOutputFileNameArg(self) -> str:
-        return 'mrc_mrc' if getattr(self, SEG_MODE).get() == TardisSegModes.instance.value else 'mrc_None'
+    def _getOutputFormatArg(self) -> str:
+        """Tardis output format argument is composed of two elements -out <format>_<format>.
+        The first output format is the semantic mask.  The second output is predicted instances
+        of the detected objects."""
+        segMode = getattr(self, SEG_MODE).get()
+        if segMode == TardisSegModes.both.value:
+            return 'mrc_csv'
+        elif segMode == TardisSegModes.semantic.value:
+            return 'mrc_None'
+        else:  # instance
+            return 'None_csv'
 
     def _getCmdArgs(self, tsId: str) -> str:
         tomo = self.inTomosDict[tsId]
-
         args = [f'--path {tsId}.mrc',
-                '--output_format mrc_npy',
+                f'--output_format {self._getOutputFormatArg()}',
                 f'--correct_px {tomo.getSamplingRate():.3f}',
-                f'--patch_size {self.patchSize.get()}',
                 '--device gpu']
-        if self._segModeIsSemantic():
+        segMode = getattr(self, SEG_MODE).get()
+        if segMode == TardisSegModes.both.value:
+            args.extend([f'--cnn_threshold {self.cnnThreshold.get():.2f}',
+                         f'--dist_threshold {self.distThreshold.get():.2f}'])
+        elif segMode == TardisSegModes.semantic.value:
             args.append(f'--cnn_threshold {self.cnnThreshold.get():.2f}')
-        else:
+        else:  # instance
             args.append(f'--dist_threshold {self.distThreshold.get():.2f}')
         return ' '.join(args)
 
     def _createSemanticOutput(self, tsId: str):
-        pass
+        inTomo = self.inTomosDict[tsId]
+        outputSet = self._getOutputMaskSet()
+        tomoMask = TomoMask()
+        tomoMask.setFileName(self._getOutputFileName(tsId, TardisSegModes.semantic.name, 'mrc'))
+        tomoMask.setVolName(inTomo.getFileName())
+        tomoMask.copyInfo(inTomo)
+        outputSet.append(tomoMask)
+        self._store(outputSet)
 
     def _createInstanceOutput(self, tsId: str):
-        with self._lock:
-            inTomo = self.inTomosDict[tsId]
-            outputSet = self._getOutputSet()
-            tomoMask = TomoMask()
-            tomoMask.setFileName(self._getOutputFileName(tsId))
-            tomoMask.setVolName(inTomo.getFileName())
-            tomoMask.copyInfo(inTomo)
-            outputSet.append(tomoMask)
-            self._store(outputSet)
+        outMeshes = self._getOutputMeshes()
+        self._addMeshPoints(tsId, outMeshes)
+        self._store(outMeshes)
+
+    def _getOutputFileName(self, tsId: str, suffix: str, ext: str) -> str:
+        return join(self._getExtraPath(tsId, 'Predictions'), f'{tsId}_{suffix}.{ext}')
+
+    def _getOutputMaskSet(self) -> SetOfTomoMasks:
+        outSetSetAttrib = self._possibleOutputs.segmentations.name
+        outputSet = getattr(self, outSetSetAttrib, None)
+        if outputSet:
+            outputSet.enableAppend()
+        else:
+            outputSet = SetOfTomoMasks.create(self._getPath(), template='tomomasks%s.sqlite')
+            outputSet.copyInfo(self.getInTomos())
+            outputSet.setStreamState(Set.STREAM_OPEN)
+            self._defineOutputs(**{outSetSetAttrib: outputSet})
+            self._defineSourceRelation(self.getInTomos(returnPointer=True), outputSet)
+        return outputSet
+
+    def _getOutputMeshes(self) -> SetOfMeshes:
+        outSetSetAttrib = self._possibleOutputs.meshes.name
+        outputSet = getattr(self, outSetSetAttrib, None)
+        if outputSet:
+            outputSet.enableAppend()
+        else:
+            outputSet = SetOfMeshes.create(self._getPath(), template='meshes%s.sqlite')
+            inTomosPointer = self.getInTomos(returnPointer=True)
+            outputSet.setPrecedents(inTomosPointer)
+            outputSet.setBoxSize(self.boxSize.get())
+            outputSet.setSamplingRate(inTomosPointer.get().getSamplingRate())
+            outputSet.setStreamState(Set.STREAM_OPEN)
+            self._defineOutputs(**{outSetSetAttrib: outputSet})
+            self._defineSourceRelation(self.getInTomos(returnPointer=True), outputSet)
+        return outputSet
+
+    def _addMeshPoints(self, tsId: str, mesh: SetOfMeshes):
+        tomo = self.inTomosDict[tsId]
+        sr = tomo.getSamplingRate()
+        fnCsv = self._getOutputFileName(tsId, TardisSegModes.instances.name, 'csv')
+        data = np.loadtxt(fnCsv, delimiter=',', skiprows=1)  # Skip the header row
+        for row in data:
+            point = MeshPoint()
+            # Lines are [groupId, x, y, z] with coords in angstroms
+            groupId = int(row[0])
+            x = row[1]
+            y = row[2]
+            z = row[3]
+            point.setVolume(tomo)
+            point.setGroupId(groupId)
+            point.setPosition(x / sr,
+                              y / sr,
+                              z / sr,
+                              BOTTOM_LEFT_CORNER)
+            mesh.append(point)
+
+

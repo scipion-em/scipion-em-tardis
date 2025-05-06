@@ -1,1 +1,1 @@
-from tardis.protocols.protocol_membrane_prediction_base import ProtTardisSeg
+from tardis.protocols.protocol_tardis_seg import ProtTardisSeg

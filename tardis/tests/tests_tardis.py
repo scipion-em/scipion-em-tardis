@@ -25,7 +25,7 @@
 # **************************************************************************
 from pyworkflow.tests import setupTestProject, DataSet
 from pyworkflow.utils import magentaStr
-from tardis.protocols.protocol_membrane_prediction_base import TardisSegModes
+from tardis.protocols.protocol_tardis_seg import TardisSegModes
 from tomo.protocols import ProtImportTomograms
 from tomo.tests.test_base_centralized_layer import TestBaseCentralizedLayer
 from tardis.protocols.protocol_membrane_prediction3D import (ProtTardisMembransSeg, INSTANCE_SEGMENTATION,
