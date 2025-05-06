@@ -50,8 +50,9 @@ SEG_MODE = 'segmentationType'
 
 # Segmentation targets
 class TardisSegTargets(Enum):
-    membranes = 0
-    microtubules = 1
+    actin = 0
+    membranes = 1
+    microtubules = 2
 
 # Segmentation modes
 class TardisSegModes(Enum):
@@ -66,7 +67,8 @@ class TardisOutputs(Enum):
 
 
 class ProtTardisSeg(EMProtocol):
-    """Semantic or instance segmentation of microtubules and membranes in tomograms"""
+    """Semantic or instance segmentation of microtubules, membranes, or actin filaments
+    in tomograms. More info in https://smlc-nysbc.github.io/TARDIS/index.html."""
 
     _label = 'tomogram segmentation'
     _devStatus = BETA
@@ -88,7 +90,8 @@ class ProtTardisSeg(EMProtocol):
                       help='Set of tomogram to be segmented.')
 
         form.addParam(SEG_TARGET, EnumParam,
-                      choices=[TardisSegTargets.membranes.name,
+                      choices=[TardisSegTargets.actin.name,
+                               TardisSegTargets.membranes.name,
                                TardisSegTargets.microtubules.name],
                       default=TardisSegTargets.membranes.value,
                       label='Select segmentation target',
@@ -109,15 +112,6 @@ class ProtTardisSeg(EMProtocol):
                             'Similar to semantic segmentation but goes a step further—it not only classifies '
                             'objects but also differentiates between individual instances of the same category, '
                             'e. g. the different membranes or microtubules.'))
-        
-        form.addParam('distThreshold', FloatParam,
-                      default=0.9,
-                      condition=f'{SEG_MODE} in [{TardisSegModes.instances.value}, {TardisSegModes.both.value}]',
-                      label='Threshold for instance prediction',
-                      validators=[GE(0),LE(1)],
-                      help='Float value between 0.0 and 1.0. Higher value then 0.9 will lower number '
-                           'of the predicted instances, a lower value will increase the number of '
-                           'predicted instances.')
 
         form.addParam('cnnThreshold', FloatParam,
                       default=0.5,
@@ -127,6 +121,15 @@ class ProtTardisSeg(EMProtocol):
                       help='Float value between 0.0 and 1.0. Higher value than 0.5 will lead to a reduction '
                            'in noise and membrane prediction recall. A lower value will increase membrane '
                            'prediction recall but may lead to increased noise.')
+
+        form.addParam('distThreshold', FloatParam,
+                      default=0.9,
+                      condition=f'{SEG_MODE} in [{TardisSegModes.instances.value}, {TardisSegModes.both.value}]',
+                      label='Threshold for instance prediction',
+                      validators=[GE(0),LE(1)],
+                      help='Float value between 0.0 and 1.0. Higher value then 0.9 will lower number '
+                           'of the predicted instances, a lower value will increase the number of '
+                           'predicted instances.')
 
         form.addParam('boxSize', IntParam,
                       label='Meshes box size (px)',
@@ -155,11 +158,20 @@ class ProtTardisSeg(EMProtocol):
         self._insertFunctionStep(self._closeOutputSet)
 
     def _initialize(self):
-        self.program = 'tardis_mem' if self._segTargetIsMembrane() else 'tardis_mt'
         self.inTomosDict = {tomo.getTsId(): tomo.clone() for tomo in self.getInTomos()}
+        target = getattr(self, SEG_TARGET).get()
+        if target == TardisSegTargets.actin.value:
+            self.program = 'tardis_actin'
+        elif target == TardisSegTargets.membranes.value:
+            self.program = 'tardis_mem'
+        else:  # Microtubules
+            self.program = 'tardis_mt'
 
     def segmentStep(self, tsId: str):
         logger.info(cyanStr(f'===> tsId = {tsId}: segmenting...'))
+        logger.info(cyanStr('NOTE: The first time Tardis is executed for each segmentation target, it '
+                            'automatically downloads some model_weights file and place them into a hidden '
+                            'directory named .tardis_em and located in /home/username'))
         tomo = self.inTomosDict[tsId]
         tomoPath = self._getExtraPath(tsId)
         makePath(tomoPath)
@@ -191,9 +203,6 @@ class ProtTardisSeg(EMProtocol):
 
     def _getCurrentTomoFile(self, tsId: str) -> str:
         return join(self._getCurrentTomoDir(tsId), f'{tsId}.mrc')
-
-    def _segTargetIsMembrane(self) -> bool:
-        return True if getattr(self, SEG_TARGET).get() == TardisSegTargets.membranes.value else False
 
     def _getOutputFormatArg(self) -> str:
         """Tardis output format argument is composed of two elements -out <format>_<format>.
