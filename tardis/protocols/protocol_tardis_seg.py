@@ -150,17 +150,20 @@ class ProtTardisSeg(EMProtocol):
         closeSetDeps = []
         self._initialize()
         for tsId in self.inTomosDict.keys():
+            cId = self._insertFunctionStep(self.convertInputStep, tsId,
+                                           prerequisites=[],
+                                           needsGPU=False)
             segId = self._insertFunctionStep(self.segmentStep, tsId,
-                                             prerequisites=[],
+                                             prerequisites=cId,
                                              needsGPU=True)
             cOutId = self._insertFunctionStep(self.createOutputStep, tsId,
                                               prerequisites=segId,
                                               needsGPU=False)
             closeSetDeps.append(cOutId)
-        self._insertFunctionStep(self.closeOutputSet)
+        self._insertFunctionStep(self.closeOutputSetStep)
 
     def _initialize(self):
-        self.inTomosDict = {tomo.getTsId(): tomo.clone() for tomo in self.getInTomos()}
+        self.inTomosDict = {tomo.getTsId(): tomo.clone() for tomo in self._getInTomos()}
         target = getattr(self, SEG_TARGET).get()
         if target == TardisSegTargets.actin.value:
             self.program = 'tardis_actin'
@@ -192,18 +195,20 @@ class ProtTardisSeg(EMProtocol):
         logger.info(cyanStr(f'===> tsId = {tsId}: Creating the results...'))
         with self._lock:
             if tsId in self.failedItems:
-                self.createOutputFailedSet(tsId)
-                failedTs = getattr(self, OUTPUT_TOMOS_FAILED_NAME, None)
-                self._store(failedTs)
+                self._createFailedOutput(tsId)
             else:
-                segMode = self._getSegmentationMode()
-                if segMode == TardisSegModes.both.value:
-                    self._createSemanticOutput(tsId)
-                    self._createInstanceOutput(tsId)
-                elif segMode == TardisSegModes.semantic.value:
-                    self._createSemanticOutput(tsId)
-                else:  # instance
-                    self._createInstanceOutput(tsId)
+                try:
+                    segMode = self._getSegmentationMode()
+                    if segMode == TardisSegModes.both.value:
+                        self._createSemanticOutput(tsId)
+                        self._createInstanceOutput(tsId)
+                    elif segMode == TardisSegModes.semantic.value:
+                        self._createSemanticOutput(tsId)
+                    else:  # instance
+                        self._createInstanceOutput(tsId)
+                except Exception as e:
+                    logger.error(redStr(f'tsId =  {tsId}: Output creation failed -> {e}'))
+                    self._createFailedOutput(tsId)
 
     def closeOutputSetStep(self):
         segMode = self._getSegmentationMode()
@@ -227,7 +232,7 @@ class ProtTardisSeg(EMProtocol):
     # --------------------------- INFO functions ------------------------------------
 
     # --------------------------- UTILS functions -----------------------------------
-    def getInTomos(self, returnPointer: bool = False) -> Union[SetOfTomoMasks, Pointer]:
+    def _getInTomos(self, returnPointer: bool = False) -> Union[SetOfTomoMasks, Pointer]:
         inTomosPointer = getattr(self, IN_TOMOS)
         return inTomosPointer if returnPointer else inTomosPointer.get()
     
@@ -293,10 +298,10 @@ class ProtTardisSeg(EMProtocol):
             outputSet.enableAppend()
         else:
             outputSet = SetOfTomoMasks.create(self._getPath(), template='tomomasks%s.sqlite')
-            outputSet.copyInfo(self.getInTomos())
+            outputSet.copyInfo(self._getInTomos())
             outputSet.setStreamState(Set.STREAM_OPEN)
             self._defineOutputs(**{outSetSetAttrib: outputSet})
-            self._defineSourceRelation(self.getInTomos(returnPointer=True), outputSet)
+            self._defineSourceRelation(self._getInTomos(returnPointer=True), outputSet)
         return outputSet
 
     def _getOutputMeshes(self) -> SetOfMeshes:
@@ -306,13 +311,13 @@ class ProtTardisSeg(EMProtocol):
             outputSet.enableAppend()
         else:
             outputSet = SetOfMeshes.create(self._getPath(), template='meshes%s.sqlite')
-            inTomosPointer = self.getInTomos(returnPointer=True)
+            inTomosPointer = self._getInTomos(returnPointer=True)
             outputSet.setPrecedents(inTomosPointer)
             outputSet.setBoxSize(self.boxSize.get())
             outputSet.setSamplingRate(inTomosPointer.get().getSamplingRate())
             outputSet.setStreamState(Set.STREAM_OPEN)
             self._defineOutputs(**{outSetSetAttrib: outputSet})
-            self._defineSourceRelation(self.getInTomos(returnPointer=True), outputSet)
+            self._defineSourceRelation(self._getInTomos(returnPointer=True), outputSet)
         return outputSet
 
     def _addMeshPoints(self, tsId: str, mesh: SetOfMeshes):
@@ -335,15 +340,15 @@ class ProtTardisSeg(EMProtocol):
                               BOTTOM_LEFT_CORNER)
             mesh.append(point)
 
-    def createOutputFailedSet(self, tsId: str):
+    def _createOutputFailedSet(self, tsId: str):
         """ Just copy input item to the failed output set. """
         logger.info(f'Creating the failed tomo output ---> {tsId}')
-        inTomosPointer = self.getInTomos(returnPointer=True)
-        output = self.getOutputFailedSet(inTomosPointer)
+        inTomosPointer = self._getInTomos(returnPointer=True)
+        output = self._getOutputFailedSet(inTomosPointer)
         tomo = self.inTomosDict[tsId]  # Already cloned when the dictionary was created
         output.append(tomo)
 
-    def getOutputFailedSet(self, inputPtr: Pointer) -> SetOfTomograms:
+    def _getOutputFailedSet(self, inputPtr: Pointer) -> SetOfTomograms:
         """ Create output set for failed tomograms. """
         inTomos = inputPtr.get()
         failedTomos = getattr(self, OUTPUT_TOMOS_FAILED_NAME, None)
@@ -356,3 +361,8 @@ class ProtTardisSeg(EMProtocol):
             self._defineOutputs(**{OUTPUT_TOMOS_FAILED_NAME: failedTomos})
             self._defineSourceRelation(inputPtr, failedTomos)
         return failedTomos
+
+    def _createFailedOutput(self, tsId: str):
+        self._createOutputFailedSet(tsId)
+        failedTs = getattr(self, OUTPUT_TOMOS_FAILED_NAME, None)
+        self._store(failedTs)
