@@ -34,11 +34,10 @@ from pyworkflow import BETA
 from pyworkflow.object import Pointer, Set
 from pyworkflow.protocol import STEPS_PARALLEL, FloatParam, StringParam, LEVEL_ADVANCED, GE, \
     LE, GPU_LIST, PointerParam, EnumParam, IntParam
-from pyworkflow.utils import Message, makePath, createLink, cyanStr
+from pyworkflow.utils import Message, makePath, createLink, cyanStr, redStr
 from tardis import Plugin
 from tomo.constants import BOTTOM_LEFT_CORNER
-from tomo.objects import SetOfTomoMasks, SetOfMeshes, TomoMask, MeshPoint
-
+from tomo.objects import SetOfTomoMasks, SetOfMeshes, TomoMask, MeshPoint, SetOfTomograms
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +46,8 @@ IN_TOMOS = 'inputSetOfTomograms'
 SEG_TARGET = 'segmentationTarget'
 SEG_MODE = 'segmentationType'
 
+# Other variables
+OUTPUT_TOMOS_FAILED_NAME = "FailedTomos"
 
 # Segmentation targets
 class TardisSegTargets(Enum):
@@ -78,6 +79,7 @@ class ProtTardisSeg(EMProtocol):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.inTomosDict = None
+        self.failedItems = []
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):
@@ -155,7 +157,7 @@ class ProtTardisSeg(EMProtocol):
                                               prerequisites=segId,
                                               needsGPU=False)
             closeSetDeps.append(cOutId)
-        self._insertFunctionStep(self._closeOutputSet)
+        self._insertFunctionStep(self.closeOutputSet)
 
     def _initialize(self):
         self.inTomosDict = {tomo.getTsId(): tomo.clone() for tomo in self.getInTomos()}
@@ -167,29 +169,60 @@ class ProtTardisSeg(EMProtocol):
         else:  # Microtubules
             self.program = 'tardis_mt'
 
+    def convertInputStep(self, tsId):
+        logger.info(cyanStr(f'===> tsId = {tsId}: creating the files/folders needed...'))
+        tomo = self.inTomosDict[tsId]
+        tomoPath = self._getExtraPath(tsId)
+        makePath(tomoPath)
+        createLink(tomo.getFileName(), self._getCurrentTomoFile(tsId))
+
     def segmentStep(self, tsId: str):
         logger.info(cyanStr(f'===> tsId = {tsId}: segmenting...'))
         logger.info(cyanStr('NOTE: The first time Tardis is executed for each segmentation target, it '
                             'automatically downloads some model_weights file and place them into a hidden '
                             'directory named .tardis_em and located in /home/username'))
-        tomo = self.inTomosDict[tsId]
-        tomoPath = self._getExtraPath(tsId)
-        makePath(tomoPath)
-        createLink(tomo.getFileName(), self._getCurrentTomoFile(tsId))
-        args = self._getCmdArgs(tsId)
-        Plugin.runTardis(self, self.program, args, cwd=self._getCurrentTomoDir(tsId))
+        try:
+            args = self._getCmdArgs(tsId)
+            Plugin.runTardis(self, self.program, args, cwd=self._getCurrentTomoDir(tsId))
+        except Exception as e:
+            self.failedItems.append(tsId)
+            logger.error(redStr(f'Tardis execution failed for tsId {tsId} -> {e}'))
 
     def createOutputStep(self, tsId: str):
         logger.info(cyanStr(f'===> tsId = {tsId}: Creating the results...'))
         with self._lock:
-            segMode = getattr(self, SEG_MODE).get()
-            if segMode == TardisSegModes.both.value:
-                self._createSemanticOutput(tsId)
-                self._createInstanceOutput(tsId)
-            elif segMode == TardisSegModes.semantic.value:
-                self._createSemanticOutput(tsId)
-            else:  # instance
-                self._createInstanceOutput(tsId)
+            if tsId in self.failedItems:
+                self.createOutputFailedSet(tsId)
+                failedTs = getattr(self, OUTPUT_TOMOS_FAILED_NAME, None)
+                self._store(failedTs)
+            else:
+                segMode = self._getSegmentationMode()
+                if segMode == TardisSegModes.both.value:
+                    self._createSemanticOutput(tsId)
+                    self._createInstanceOutput(tsId)
+                elif segMode == TardisSegModes.semantic.value:
+                    self._createSemanticOutput(tsId)
+                else:  # instance
+                    self._createInstanceOutput(tsId)
+
+    def closeOutputSetStep(self):
+        segMode = self._getSegmentationMode()
+        outputSegs = getattr(self, self._possibleOutputs.segmentations.name, None)
+        outputMeshes = getattr(self, self._possibleOutputs.meshes.name, None)
+        noOutputCheckVal = None
+        if segMode == TardisSegModes.both.value:
+            output = [outputSegs, outputMeshes]
+            noOutputCheckVal = [None, None]
+        elif segMode == TardisSegModes.semantic.value:
+            output = outputSegs
+        else:  # instance
+            output = outputMeshes
+
+        if output == noOutputCheckVal:
+            raise Exception('No Tardis results were generated. Maybe the tomograms are too large '
+                            'for the GPU/s used. Consider to bin them before.')
+        else:
+            self._closeOutputSet()
 
     # --------------------------- INFO functions ------------------------------------
 
@@ -197,6 +230,9 @@ class ProtTardisSeg(EMProtocol):
     def getInTomos(self, returnPointer: bool = False) -> Union[SetOfTomoMasks, Pointer]:
         inTomosPointer = getattr(self, IN_TOMOS)
         return inTomosPointer if returnPointer else inTomosPointer.get()
+    
+    def _getSegmentationMode(self):
+        return getattr(self, SEG_MODE).get()
 
     def _getCurrentTomoDir(self, tsId: str) -> str:
         return self._getExtraPath(tsId)
@@ -208,7 +244,7 @@ class ProtTardisSeg(EMProtocol):
         """Tardis output format argument is composed of two elements -out <format>_<format>.
         The first output format is the semantic mask.  The second output is predicted instances
         of the detected objects."""
-        segMode = getattr(self, SEG_MODE).get()
+        segMode = self._getSegmentationMode()
         if segMode == TardisSegModes.both.value:
             return 'mrc_csv'
         elif segMode == TardisSegModes.semantic.value:
@@ -222,7 +258,7 @@ class ProtTardisSeg(EMProtocol):
                 f'--output_format {self._getOutputFormatArg()}',
                 f'--correct_px {tomo.getSamplingRate():.3f}',
                 '--device gpu']
-        segMode = getattr(self, SEG_MODE).get()
+        segMode = self._getSegmentationMode()
         if segMode == TardisSegModes.both.value:
             args.extend([f'--cnn_threshold {self.cnnThreshold.get():.2f}',
                          f'--dist_threshold {self.distThreshold.get():.2f}'])
@@ -299,4 +335,24 @@ class ProtTardisSeg(EMProtocol):
                               BOTTOM_LEFT_CORNER)
             mesh.append(point)
 
+    def createOutputFailedSet(self, tsId: str):
+        """ Just copy input item to the failed output set. """
+        logger.info(f'Creating the failed tomo output ---> {tsId}')
+        inTomosPointer = self.getInTomos(returnPointer=True)
+        output = self.getOutputFailedSet(inTomosPointer)
+        tomo = self.inTomosDict[tsId]  # Already cloned when the dictionary was created
+        output.append(tomo)
 
+    def getOutputFailedSet(self, inputPtr: Pointer) -> SetOfTomograms:
+        """ Create output set for failed tomograms. """
+        inTomos = inputPtr.get()
+        failedTomos = getattr(self, OUTPUT_TOMOS_FAILED_NAME, None)
+        if failedTomos:
+            failedTomos.enableAppend()
+        else:
+            failedTomos = SetOfTomograms.create(self._getPath(), template='tomograms', suffix='Failed')
+            failedTomos.copyInfo(inTomos)
+            failedTomos.setStreamState(Set.STREAM_OPEN)
+            self._defineOutputs(**{OUTPUT_TOMOS_FAILED_NAME: failedTomos})
+            self._defineSourceRelation(inputPtr, failedTomos)
+        return failedTomos
