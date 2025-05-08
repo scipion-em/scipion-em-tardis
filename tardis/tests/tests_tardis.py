@@ -1,6 +1,6 @@
 # ***************************************************************************
 # *
-# * Authors:     Raquel Fabra López (raquel.fabra@estudiante.uam.es)
+# * Authors:     Scipion Team ()
 # *
 # * Unidad de Bioinformatica of Centro Nacional de Biotecnologia, CSIC
 # *
@@ -24,7 +24,6 @@
 # *
 # **************************************************************************
 from typing import Tuple, Union
-
 from imod.constants import OUTPUT_TOMOGRAMS_NAME
 from imod.protocols import ProtImodTomoNormalization
 from imod.protocols.protocol_base import IN_TOMO_SET, BINNING_FACTOR
@@ -35,7 +34,8 @@ from tardis.protocols.protocol_tardis_seg import TardisSegModes, TardisSegTarget
 from tomo.objects import SetOfTomoMasks, SetOfMeshes
 from tomo.protocols import ProtImportTomograms
 from tomo.tests.test_base_centralized_layer import TestBaseCentralizedLayer
-from tomo.tests import EMD_10439, DataSetEmd10439
+from tomo.tests import EMD_10439, DataSetEmd10439, MICROTUBULES_TOMOS_DATASET, DataSet_MicrotubulesTomos, \
+    ACTIN_TOMOS_DATASET, DataSet_ActinTomos
 from abc import ABC, abstractmethod
 
 
@@ -75,7 +75,7 @@ class TestTardisBase(TestBaseCentralizedLayer, ABC):
 
     @classmethod
     def _runBinTomograms(cls):
-        print(magentaStr('\n==> Binning the tomograms with IMOD'))
+        print(magentaStr('\n==> Binning the tomograms with IMOD:'))
         protArgsDict = {
             IN_TOMO_SET: cls.importedTomos,
             BINNING_FACTOR: cls.binFactor
@@ -95,7 +95,7 @@ class TestTardisBase(TestBaseCentralizedLayer, ABC):
         infoStr, objLabel = self._getInfoStrs(segTarget, segMode)
         print(magentaStr(infoStr))
         tardisInputDict = {
-            IN_TOMOS: self.importedTomos,
+            IN_TOMOS: self.binnedTomos,
             SEG_TARGET: segTarget,
             SEG_MODE: segMode,
             'cnnThreshold': cnnThreshold,
@@ -124,8 +124,8 @@ class TestTardisBase(TestBaseCentralizedLayer, ABC):
         else:
             segModeStr = TardisSegModes.both.name
         infoStr = (f'\n==> Running Tardis:'
-                   f'\n\t - Seg Target = {segTargetStr}'
-                   f'\n\t - Seg Mode = {segModeStr}')
+                   f'\n\t- Seg Target = {segTargetStr}'
+                   f'\n\t- Seg Mode = {segModeStr}')
         objLabel = f'tardis {segTargetStr} {segModeStr}'
         return infoStr, objLabel
 
@@ -154,103 +154,43 @@ class TestTardisMembraneSeg(TestTardisBase):
         outputTomos = getattr(protImportTomogram, 'Tomograms', None)
         cls.importedTomos = outputTomos
 
-    def testMembraneSeg_01(self):
+    def testMembraneSeg(self):
         segMode = TardisSegModes.both.value
-        self._runTardis(self.segTarget, segMode)
+        segmentations, meshes = self._runTardis(self.segTarget, segMode)
+        # Check the segmentations
+        self.checkTomoMasks(segmentations,
+                            expectedSetSize=1,
+                            expectedSRate=self.unbinnedSRate * self.binFactor,
+                            expectedDimensions=DataSetEmd10439.getBinnedDims(self.binFactor))
+        # Check the meshes
+        # TODO: check if it is deterministic, and in case it is not, expand the TCL with a no. coords tol.
 
-#     @classmethod
-#     def _runTardis(cls, inTomograms=None, recMethod=None, segMethod=None):
-#         whatSegment = 'MEMBRANE_SEGMENTATION' if recMethod is MEMBRANE_SEGMENTATION else 'MICROTUBULE_SEGMENTATION'
-#
-#         if segMethod == INSTANCE_SEGMENTATION:
-#             method = '-> Instance'
-#         elif segMethod == SEMANTIC_SEGMENTATION:
-#             method = '-> Semantic'
-#
-#         print(magentaStr(f"\n==> Segmenting the tomograms using the method {whatSegment} {method}:"))
-#
-#         protSegTomo = cls.newProtocol(ProtTardisMembransSeg,
-#                                       inTomograms=inTomograms,
-#                                       whatSegment=recMethod,
-#                                       typeOfSegmentation=segMethod)
-#
-#         protSegTomo.setObjLabel(f'Tomo seg {whatSegment}')
-#         cls.launchProtocol(protSegTomo)
-#         outTomos = getattr(protSegTomo, OUTPUT_TOMOMASK_NAME, None)
-#         return outTomos
-#
-#     #TODO: add def checkTomoMasks, add vol
-#     def _checkTomos(self, inTomoSet):
-#         self.checkTomoMask(inTomoSet,
-#                            expectedSetSize=inTomoSet.getSize(),
-#                            expectedSRate=inTomoSet.getSamplingRate())  #                   expectedDimensions=inTomoSet.getFirstItems().getDimensions())
-#
-#     def testMembraneSegmentation(self):
-#         instanceOrSemantic = [INSTANCE_SEGMENTATION, SEMANTIC_SEGMENTATION]
-#         whatSegment = MEMBRANE_SEGMENTATION
-#         for segType in instanceOrSemantic:
-#             segTomo = self._runTardis(inTomograms=self.importedTomo, recMethod=whatSegment, segMethod=segType)
-#             print(segTomo)
-#             self._checkTomos(segTomo)
-#
-#
-# ###############################################################################################
-#
-# class TestTardisMicrotubuleSeg(TestBaseCentralizedLayer):
-#
-#     @classmethod
-#     def setUpClass(cls):
-#         setupTestProject(cls)
-#         cls.ds = DataSet.getDataSet('microtubulesTomograms')
-#         cls._runPreviousProtocols()
-#
-#     @classmethod
-#     def _runPreviousProtocols(cls):
-#         cls.importedTomo = cls._importTomograms()
-#
-#     @classmethod
-#     def _importTomograms(cls):
-#         print(magentaStr("\n==> Importing data - tomograms:"))
-#         protImportTomogram = cls.newProtocol(ProtImportTomograms,
-#                                              filesPath=cls.ds.getFile('micro'),
-#                                              samplingRate=5.0)
-#
-#         cls.launchProtocol(protImportTomogram)
-#         outputTomos = getattr(protImportTomogram, 'Tomograms', None)
-#         cls.assertIsNotNone(outputTomos, 'No tomograms were genetated.')
-#
-#         return outputTomos
-#
-#     @classmethod
-#     def _runTardis(cls, inTomograms=None, recMethod=None, segMethod=None):
-#         whatSegment = 'MEMBRANE_SEGMENTATION' if recMethod is MEMBRANE_SEGMENTATION else 'MICROTUBULE_SEGMENTATION'
-#
-#         if segMethod == INSTANCE_SEGMENTATION:
-#             method = '-> Instance'
-#         elif segMethod == SEMANTIC_SEGMENTATION:
-#             method = '-> Semantic'
-#
-#         # print(magentaStr(f"\n==> Segmenting the tomograms using the method {whatSegment} {method}:"))
-#
-#         protSegTomo = cls.newProtocol(ProtTardisMembransSeg,
-#                                       inputSetOfTomograms=inTomograms,
-#                                       segmentationType=TardisSegModes.semantic.value)
-#
-#         # protSegTomo.setObjLabel(f'Tomo seg {whatSegment}')
-#         cls.launchProtocol(protSegTomo)
-#         outTomos = getattr(protSegTomo, OUTPUT_TOMOMASK_NAME, None)
-#         return outTomos
-#
-#     def _checkTomos(self, inTomoSet):
-#         self.checkTomoMask(inTomoSet,
-#                            expectedSetSize=inTomoSet.getSize(),
-#                            expectedSRate=inTomoSet.getSamplingRate())  #                   expectedDimensions=inTomoSet.getFirstItems().getDimensions())
-#
-#     def testMicrotubuleSegmentation(self):
-#
-#         instanceOrSemantic = [INSTANCE_SEGMENTATION, SEMANTIC_SEGMENTATION]
-#         whatSegment = MICROTUBULE_SEGMENTATION
-#         for segType in instanceOrSemantic:
-#             segTomo = self._runTardis(inTomograms=self.importedTomo, recMethod=whatSegment, segMethod=segType)
-#             print(segTomo)
-#             self._checkTomos(segTomo)
+
+class TestTardisMicrotubuleSeg(TestTardisBase, ABC):
+
+    @classmethod
+    def setupChildTest(cls):
+        cls.ds = DataSet.getDataSet(MICROTUBULES_TOMOS_DATASET)
+        cls.unbinnedSRate = DataSet_MicrotubulesTomos.unbinnedSRate.value
+        cls.segTarget = TardisSegTargets.microtubules.value
+        cls.binFactor = 2
+
+    # @classmethod
+    # def _runPreviousProtocols(cls):
+    #     cls._importTomograms()
+    #     cls._runBinTomograms()
+
+
+class TestTardisActinSeg(TestTardisBase, ABC):
+
+    @classmethod
+    def setupChildTest(cls):
+        cls.ds = DataSet.getDataSet(ACTIN_TOMOS_DATASET)
+        cls.unbinnedSRate = DataSet_ActinTomos.unbinnedSRate.value
+        cls.segTarget = TardisSegTargets.actin.value
+        cls.binFactor = 2
+
+    # @classmethod
+    # def _runPreviousProtocols(cls):
+    #     cls._importTomograms()
+    #     cls._runBinTomograms()
