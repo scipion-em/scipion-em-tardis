@@ -36,16 +36,17 @@ from tomo.protocols import ProtImportTomograms
 from tomo.tests.test_base_centralized_layer import TestBaseCentralizedLayer
 from tomo.tests import EMD_10439, DataSetEmd10439, MICROTUBULES_TOMOS_DATASET, DataSet_MicrotubulesTomos, \
     ACTIN_TOMOS_DATASET, DataSet_ActinTomos
-from abc import ABC, abstractmethod
 
 
-class TestTardisBase(TestBaseCentralizedLayer, ABC):
+class TestTardisBase(TestBaseCentralizedLayer):
     ds = None
     importedTomos = None
     binFactor = None
     binnedTomos = None
     unbinnedSRate = None
     segTarget = None
+    filesPath = None
+    filesPattern = None
 
     @classmethod
     def setUpClass(cls):
@@ -54,7 +55,6 @@ class TestTardisBase(TestBaseCentralizedLayer, ABC):
         cls.runPrevProtocols()
 
     @classmethod
-    @abstractmethod
     def setupChildTest(cls):
         pass
 
@@ -69,9 +69,20 @@ class TestTardisBase(TestBaseCentralizedLayer, ABC):
             raise  Exception(f'Something Failed when executing the previous protocols -> {e}')
 
     @classmethod
-    @abstractmethod
     def _runPreviousProtocols(cls):
-        pass
+        cls._importTomograms()
+        cls._runBinTomograms()
+
+    @classmethod
+    def _importTomograms(cls):
+        print(magentaStr("\n==> Importing data - tomograms:"))
+        protImportTomogram = cls.newProtocol(ProtImportTomograms,
+                                             filesPath=cls.ds.getFile(cls.filesPath),
+                                             filesPattern=cls.filesPattern,
+                                             samplingRate=cls.unbinnedSRate)
+        cls.launchProtocol(protImportTomogram)
+        outputTomos = getattr(protImportTomogram, 'Tomograms', None)
+        cls.importedTomos = outputTomos
 
     @classmethod
     def _runBinTomograms(cls):
@@ -138,24 +149,10 @@ class TestTardisMembraneSeg(TestTardisBase):
         cls.unbinnedSRate = DataSetEmd10439.unbinnedSRate.value
         cls.segTarget = TardisSegTargets.membranes.value
         cls.binFactor = 2
-
-    @classmethod
-    def _runPreviousProtocols(cls):
-        cls._importTomograms()
-        cls._runBinTomograms()
-
-    @classmethod
-    def _importTomograms(cls):
-        print(magentaStr("\n==> Importing data - tomograms:"))
-        protImportTomogram = cls.newProtocol(ProtImportTomograms,
-                                             filesPath=cls.ds.getFile(DataSetEmd10439.tomoEmd10439.value),
-                                             samplingRate=cls.unbinnedSRate)
-        cls.launchProtocol(protImportTomogram)
-        outputTomos = getattr(protImportTomogram, 'Tomograms', None)
-        cls.importedTomos = outputTomos
+        cls.filesPath = DataSetEmd10439.tomoEmd10439.value
 
     def testMembraneSeg(self):
-        segMode = TardisSegModes.both.value
+        segMode = TardisSegModes.both.value  # Both semantic and instance segmentation
         segmentations, meshes = self._runTardis(self.segTarget, segMode)
         # Check the segmentations
         self.checkTomoMasks(segmentations,
@@ -166,7 +163,7 @@ class TestTardisMembraneSeg(TestTardisBase):
         # TODO: check if it is deterministic, and in case it is not, expand the TCL with a no. coords tol.
 
 
-class TestTardisMicrotubuleSeg(TestTardisBase, ABC):
+class TestTardisMicrotubuleSeg(TestTardisBase):
 
     @classmethod
     def setupChildTest(cls):
@@ -174,14 +171,23 @@ class TestTardisMicrotubuleSeg(TestTardisBase, ABC):
         cls.unbinnedSRate = DataSet_MicrotubulesTomos.unbinnedSRate.value
         cls.segTarget = TardisSegTargets.microtubules.value
         cls.binFactor = 2
+        cls.filesPath = DataSet_MicrotubulesTomos.fPath.value
+        cls.filesPattern = DataSet_MicrotubulesTomos.fPattern.value
 
-    # @classmethod
-    # def _runPreviousProtocols(cls):
-    #     cls._importTomograms()
-    #     cls._runBinTomograms()
+    def testMembraneSeg(self):
+        segMode = TardisSegModes.semantic.value  # Only semantic segmentation
+        segmentations, meshes = self._runTardis(self.segTarget, segMode)
+        # Check the segmentations
+        self.checkTomoMasks(segmentations,
+                            expectedSetSize=DataSet_MicrotubulesTomos.nTomos.value,
+                            expectedSRate=self.unbinnedSRate * self.binFactor,
+                            expectedDimensions=DataSet_MicrotubulesTomos.getBinnedDims(self.binFactor))
+        # Check the meshes
+        self.assertIsNotNone(meshes)
 
 
-class TestTardisActinSeg(TestTardisBase, ABC):
+
+class TestTardisActinSeg(TestTardisBase):
 
     @classmethod
     def setupChildTest(cls):
@@ -189,8 +195,13 @@ class TestTardisActinSeg(TestTardisBase, ABC):
         cls.unbinnedSRate = DataSet_ActinTomos.unbinnedSRate.value
         cls.segTarget = TardisSegTargets.actin.value
         cls.binFactor = 2
+        cls.filesPath = DataSet_ActinTomos.fPath.value
+        cls.filesPattern = DataSet_ActinTomos.fPattern.value
 
-    # @classmethod
-    # def _runPreviousProtocols(cls):
-    #     cls._importTomograms()
-    #     cls._runBinTomograms()
+    def testMembraneSeg(self):
+        segMode = TardisSegModes.instances.value  # Only instance segmentation
+        segmentations, meshes = self._runTardis(self.segTarget, segMode)
+        # Check the segmentations
+        self.assertIsNotNone(segmentations)
+        # Check the meshes
+        # TODO
