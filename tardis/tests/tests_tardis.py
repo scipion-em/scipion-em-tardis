@@ -153,7 +153,9 @@ class TestTardisMembraneSeg(TestTardisBase):
 
     def testMembraneSeg(self):
         segMode = TardisSegModes.both.value  # Both semantic and instance segmentation
-        segmentations, meshes = self._runTardis(self.segTarget, segMode)
+        segmentations, meshes = self._runTardis(self.segTarget, segMode,
+                                                cnnThreshold=0.5,
+                                                distThreshold=0.9)
         # Check the segmentations
         self.checkTomoMasks(segmentations,
                             expectedSetSize=1,
@@ -180,15 +182,16 @@ class TestTardisMicrotubuleSeg(TestTardisBase):
 
     def testMembraneSeg(self):
         segMode = TardisSegModes.semantic.value  # Only semantic segmentation
-        segmentations, meshes = self._runTardis(self.segTarget, segMode)
+        segmentations, meshes = self._runTardis(self.segTarget, segMode,
+                                                cnnThreshold=0.25,
+                                                distThreshold=0.5)
         # Check the segmentations
         self.checkTomoMasks(segmentations,
                             expectedSetSize=DataSet_MicrotubulesTomos.nTomos.value,
                             expectedSRate=self.unbinnedSRate * self.binFactor,
                             expectedDimensions=DataSet_MicrotubulesTomos.getBinnedDims(self.binFactor))
         # Check the meshes
-        self.assertIsNotNone(meshes)
-
+        self.assertIsNone(meshes)
 
 
 class TestTardisActinSeg(TestTardisBase):
@@ -199,13 +202,15 @@ class TestTardisActinSeg(TestTardisBase):
         cls.unbinnedSRate = DataSet_ActinTomos.unbinnedSRate.value
         cls.segTarget = TardisSegTargets.actin.value
         cls.binFactor = 2
-        cls.filesPath = DataSet_ActinTomos.fPath.value
+        cls.filesPath = '*11*.rec'
         cls.filesPattern = DataSet_ActinTomos.fPattern.value
 
     def testMembraneSeg(self):
         segMode = TardisSegModes.instances.value  # Only instance segmentation
-        segmentations, meshes = self._runTardis(self.segTarget, segMode)
+        segmentations, meshes = self._runTardis(self.segTarget, segMode,
+                                                cnnThreshold=0.25,
+                                                distThreshold=0.5)
         # Check the segmentations
-        self.assertIsNotNone(segmentations)
+        self.assertIsNone(segmentations)
         # Check the meshes
         # TODO

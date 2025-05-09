@@ -120,8 +120,11 @@ class ProtTardisSeg(EMProtocol):
                       condition=f'{SEG_MODE} in [{TardisSegModes.semantic.value}, {TardisSegModes.both.value}]',
                       label='Threshold for semantic prediction',
                       validators=[GE(0),LE(1)],
-                      help='Float value between 0.0 and 1.0. Higher value than 0.5 will lead to a reduction '
-                           'in noise and membrane prediction recall. A lower value will increase membrane '
+                      help='Float value between 0.0 and 1.0.\n\n'
+                           '  - *For microtubules and actin*, the recommended vale is *0.25*.\n\n'
+                           '  - *For membranes,the recommended value is *0.5*.\n\n'
+                           'Higher values than the recommended will lead to a reduction '
+                           'in noise and the target prediction recall. A lower value will increase the target '
                            'prediction recall but may lead to increased noise.')
 
         form.addParam('distThreshold', FloatParam,
@@ -129,7 +132,10 @@ class ProtTardisSeg(EMProtocol):
                       condition=f'{SEG_MODE} in [{TardisSegModes.instances.value}, {TardisSegModes.both.value}]',
                       label='Threshold for instance prediction',
                       validators=[GE(0),LE(1)],
-                      help='Float value between 0.0 and 1.0. Higher value then 0.9 will lower number '
+                      help='Float value between 0.0 and 1.0.\n\n'
+                           '  - *For microtubules and actin*, the recommended vale is *0.5*.\n\n'
+                           '  - *For membranes,the recommended value is *0.9*.\n\n'
+                           'Higher value than the recommended will lower number '
                            'of the predicted instances, a lower value will increase the number of '
                            'predicted instances.')
 
