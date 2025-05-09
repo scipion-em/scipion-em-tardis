@@ -27,6 +27,7 @@ from typing import Tuple, Union
 from imod.constants import OUTPUT_TOMOGRAMS_NAME
 from imod.protocols import ProtImodTomoNormalization
 from imod.protocols.protocol_base import IN_TOMO_SET, BINNING_FACTOR
+from imod.protocols.protocol_base_preprocess import NO_ADJUST
 from pyworkflow.tests import setupTestProject, DataSet
 from pyworkflow.utils import magentaStr, cyanStr
 from tardis.protocols.protocol_tardis_seg import TardisSegModes, TardisSegTargets, ProtTardisSeg, IN_TOMOS, SEG_TARGET, \
@@ -89,7 +90,8 @@ class TestTardisBase(TestBaseCentralizedLayer):
         print(magentaStr('\n==> Binning the tomograms with IMOD:'))
         protArgsDict = {
             IN_TOMO_SET: cls.importedTomos,
-            BINNING_FACTOR: cls.binFactor
+            BINNING_FACTOR: cls.binFactor,
+            'floatDensities': NO_ADJUST
         }
         protBinTomos = cls.newProtocol(ProtImodTomoNormalization, **protArgsDict)
         cls.launchProtocol(protBinTomos)
