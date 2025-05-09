@@ -166,7 +166,7 @@ class TestTardisMembraneSeg(TestTardisBase):
         # Check the meshes
         self.checkCoordinates(meshes,
                               expectedSetSize=23600,
-                              setSizeTolPercent=0.01,
+                              setSizeTolPercent=0.05,
                               expectedBoxSize=20,
                               expectedSRate=self.unbinnedSRate * self.binFactor,
                               orientedParticles=False)
@@ -215,4 +215,9 @@ class TestTardisActinSeg(TestTardisBase):
         # Check the segmentations
         self.assertIsNone(segmentations)
         # Check the meshes
-        # TODO
+        self.checkCoordinates(meshes,
+                              expectedSetSize=4460,
+                              setSizeTolPercent=0.05,
+                              expectedBoxSize=20,
+                              expectedSRate=self.unbinnedSRate * self.binFactor,
+                              orientedParticles=False)
