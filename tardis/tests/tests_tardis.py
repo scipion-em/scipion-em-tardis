@@ -202,8 +202,8 @@ class TestTardisActinSeg(TestTardisBase):
         cls.unbinnedSRate = DataSet_ActinTomos.unbinnedSRate.value
         cls.segTarget = TardisSegTargets.actin.value
         cls.binFactor = 2
-        cls.filesPath = '*11*.rec'
-        cls.filesPattern = DataSet_ActinTomos.fPattern.value
+        cls.filesPath = DataSet_ActinTomos.fPath.value
+        cls.filesPattern = '*11*.rec'
 
     def testMembraneSeg(self):
         segMode = TardisSegModes.instances.value  # Only instance segmentation
