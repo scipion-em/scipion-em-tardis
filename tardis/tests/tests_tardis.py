@@ -160,8 +160,12 @@ class TestTardisMembraneSeg(TestTardisBase):
                             expectedSRate=self.unbinnedSRate * self.binFactor,
                             expectedDimensions=DataSetEmd10439.getBinnedDims(self.binFactor))
         # Check the meshes
-        # TODO: check if it is deterministic, and in case it is not, expand the TCL with a no. coords tol.
-
+        self.checkCoordinates(meshes,
+                              expectedSetSize=23600,
+                              setSizeTolPercent=0.01,
+                              expectedBoxSize=20,
+                              expectedSRate=self.unbinnedSRate * self.binFactor,
+                              orientedParticles=False)
 
 class TestTardisMicrotubuleSeg(TestTardisBase):
 
