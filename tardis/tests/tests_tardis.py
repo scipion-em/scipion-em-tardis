@@ -203,7 +203,7 @@ class TestTardisActinSeg(TestTardisBase):
         cls.segTarget = TardisSegTargets.actin.value
         cls.binFactor = 2
         cls.filesPath = DataSet_ActinTomos.fPath.value
-        cls.filesPattern = '*11*.rec'
+        cls.filesPattern = '*04*.rec'
 
     def testMembraneSeg(self):
         segMode = TardisSegModes.instances.value  # Only instance segmentation
