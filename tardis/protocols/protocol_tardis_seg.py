@@ -31,7 +31,7 @@ from typing import Union
 import numpy as np
 from pwem.protocols import EMProtocol
 from pyworkflow import BETA
-from pyworkflow.object import Pointer, Set
+from pyworkflow.object import Pointer, Set, Integer
 from pyworkflow.protocol import STEPS_PARALLEL, FloatParam, StringParam, LEVEL_ADVANCED, GE, \
     LE, GPU_LIST, PointerParam, EnumParam, IntParam
 from pyworkflow.utils import Message, makePath, createLink, cyanStr, redStr
@@ -140,9 +140,7 @@ class ProtTardisSeg(EMProtocol):
                            'predicted instances.')
 
         notMembraneSeg = f'{SEG_TARGET} != {TardisSegTargets.membranes.value}'
-        filamentStr = TardisSegTargets.microtubules.name
-        filamentStr = f'{TardisSegTargets.actin.name} filaments' if SEG_TARGET == TardisSegTargets.actin.value \
-            else filamentStr
+        filamentStr = f'{TardisSegTargets.microtubules.name}/{TardisSegTargets .actin.name} filaments'
         group = form.addGroup(f'{filamentStr}', condition=notMembraneSeg)
         group.addParam('lenFilter', IntParam,
                       default=1000,
