@@ -139,6 +139,39 @@ class ProtTardisSeg(EMProtocol):
                            'of the predicted instances, a lower value will increase the number of '
                            'predicted instances.')
 
+        notMembraneSeg = f'{SEG_TARGET} != {TardisSegTargets.membranes.value}'
+        filamentStr = TardisSegTargets.microtubules.name
+        filamentStr = f'{TardisSegTargets.actin.name} filaments' if SEG_TARGET == TardisSegTargets.actin.value \
+            else filamentStr
+        group = form.addGroup(f'{filamentStr}', condition=notMembraneSeg)
+        group.addParam('lenFilter', IntParam,
+                      default=1000,
+                      label='Minimum length (Å)',
+                      condition=notMembraneSeg,
+                      help='All filaments shorter then this length will be deleted.')
+
+        group.addParam('filamentDistThreshold', IntParam,
+                      default=2500,
+                      label=f'Threshold distance between two {filamentStr} (Å)',
+                      condition=notMembraneSeg,
+                      help=f'To address the issue where {filamentStr} are mistakenly identified as two different '
+                           f'filaments, Tardis uses a filtering technique. This involves identifying the direction '
+                           f'each filament end points towards and then linking any filaments that are facing '
+                           f'the same direction and are within a certain distance from each other, measured '
+                           f'in angstroms. This distance threshold determines how far apart two {filamentStr} '
+                           f'can be, while still being considered as a single unit if they are oriented in the '
+                           f'same direction.')
+
+        group.addParam('filamentThk', IntParam,
+                      default=250,
+                      label=f'{filamentStr} thickness (Å)',
+                      condition=notMembraneSeg,
+                      help=f'To minimize false positives when linking {filamentStr}, Tardis limits the search area '
+                           f'to a cylindrical radius specified in angstroms. For each spline, we find the direction '
+                           f'the filament end is pointing in and look for another filament that is oriented in the '
+                           f'same direction. The ends of these filaments must be located within this cylinder to '
+                           f'be considered connected.')
+
         form.addParam('boxSize', IntParam,
                       label='Meshes box size (px)',
                       expertLevel=LEVEL_ADVANCED,
@@ -269,6 +302,8 @@ class ProtTardisSeg(EMProtocol):
                 f'--output_format {self._getOutputFormatArg()}',
                 f'--correct_px {tomo.getSamplingRate():.3f}',
                 '--device gpu']
+
+        # Segmentation mode specific parameters
         segMode = self._getSegmentationMode()
         if segMode == TardisSegModes.both.value:
             args.extend([f'--cnn_threshold {self.cnnThreshold.get():.2f}',
@@ -277,6 +312,13 @@ class ProtTardisSeg(EMProtocol):
             args.append(f'--cnn_threshold {self.cnnThreshold.get():.2f}')
         else:  # instance
             args.append(f'--dist_threshold {self.distThreshold.get():.2f}')
+
+        # Non-membrane specific parameters
+        if getattr(self, SEG_TARGET).get() != TardisSegTargets.membranes.value:
+            args.extend([f'--filter_by_length {self.lenFilter.get()}',
+                         f'--connect_splines {self.filamentDistThreshold.get()}',
+                         f'--connect_cylinder {self.filamentThk.get()}'])
+
         return ' '.join(args)
 
     def _createSemanticOutput(self, tsId: str):
