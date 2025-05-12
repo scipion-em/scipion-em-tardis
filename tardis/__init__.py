@@ -29,7 +29,7 @@ from pyworkflow.utils import Environ
 from .constants import *
 
 
-__version__ = '1.0.0'
+__version__ = '3.0.0'
 _logo = "icon.png"
 _references = ['Kiewiszz2023','Kiewisz2022']
 
@@ -45,14 +45,13 @@ class Plugin(pwem.Plugin):
         cls._defineVar(TARDIS_ENV_ACTIVATION, DEFAULT_ACTIVATION_CMD)
 
     @classmethod
-    def getEnviron(cls, gpuId='0'):
+    def getEnviron(cls):
         """ Setup the environment variables needed to launch Tardis. """
         environ = Environ(os.environ)
         if 'PYTHONPATH' in environ:
             # this is required for python virtual env to work
             del environ['PYTHONPATH']
-
-        environ.update({'CUDA_VISIBLE_DEVICES': gpuId})
+        # environ.update({'CUDA_VISIBLE_DEVICES': gpuId})
         return environ
 
     @classmethod
@@ -60,15 +59,10 @@ class Plugin(pwem.Plugin):
         return cls.getVar(TARDIS_ENV_ACTIVATION)
 
     @classmethod
-    def runTardis(cls, protocol, program, args, cwd=None, gpuId='0'):
-
+    def runTardis(cls, protocol, program, args, cwd=None):
         cudaStr = f" && CUDA_VISIBLE_DEVICES=%(GPU)s {program} "
         fullProgram = '%s %s %s' % (cls.getCondaActivationCmd(), cls.getTardisEnvActivation(), cudaStr)
-        protocol.runJob(fullProgram, args, env=cls.getEnviron(gpuId=gpuId), cwd=cwd)
-
-    @classmethod
-    def getTardisProgram(cls, program):
-        return os.path.join(cls.getHome(), 'bin', '%s' % program)
+        protocol.runJob(fullProgram, args, env=cls.getEnviron(), cwd=cwd)
 
     @classmethod
     def getDependencies(cls):
@@ -76,7 +70,6 @@ class Plugin(pwem.Plugin):
         condaActivationCmd = cls.getCondaActivationCmd()
         if not condaActivationCmd:
             neededProgs.append('conda')
-
         return neededProgs
 
     @classmethod
@@ -88,24 +81,21 @@ class Plugin(pwem.Plugin):
 
         TARDIS_INSTALLED = 'tardis_%s_installed' % version
         env_name = getTardisEnvName(version)
+
         # try to get CONDA activation command
         installationCmd = cls.getCondaActivationCmd()
 
         # Create the environment
-        installationCmd += 'conda create -y -n %s python=3.11 && ' \
-                           % env_name
+        installationCmd += f'conda create -y -n {env_name} python=3.11 && '
 
         # Activate new the environment
-        installationCmd += 'conda activate %s && ' % env_name
+        installationCmd += f'conda activate {env_name} && '
 
         # Install downloaded code
-        installationCmd += 'git clone https://github.com/SMLC-NYSBC/TARDIS.git && '
-        installationCmd += 'cd TARDIS && '
-        installationCmd += 'pip install . && '
-        installationCmd += 'cd .. && '
+        installationCmd += f'pip install "tardis-em=={TARDIS_VERSION}" && '
 
         # Flag installation finished
-        installationCmd += 'touch %s' % TARDIS_INSTALLED
+        installationCmd += f'touch {TARDIS_INSTALLED}'
 
         tardis_commands = [(installationCmd, TARDIS_INSTALLED)]
 
@@ -116,19 +106,6 @@ class Plugin(pwem.Plugin):
                        neededProgs=cls.getDependencies(),
                        default=True)
 
-    @classmethod
-    def getTardisCmd(cls, program):
-        """ Composes a Tardis command for a given program. """
-
-        # Program to run
-        program = cls.getTardisProgram(program)
-
-        fullProgram = ' %s %s && %s' % (cls.getCondaActivationCmd(), cls.getTardisEnvActivation(), program)
-
-        # Command to run
-        cmd = fullProgram
-
-        return cmd
 
 
 

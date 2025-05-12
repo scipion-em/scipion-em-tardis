@@ -31,10 +31,10 @@ This file contains constants related to scipion-em-dynamo protocols
 def getTardisEnvName(version):
     return "tardis-%s" % version
 
-
+TARDIS = 'tardis'
 TARDIS_HOME = 'TARDIS_HOME'
-TARDIS_VERSION = '0.1'
+TARDIS_VERSION = '0.3.10'
 TARDIS_FOLDER = 'tardis'
-DEFAULT_ENV_NAME = getTardisEnvName(TARDIS_VERSION)
-DEFAULT_ACTIVATION_CMD = 'conda activate ' + DEFAULT_ENV_NAME
+DEFAULT_ENV_NAME = f'{TARDIS}-{TARDIS_VERSION}'
+DEFAULT_ACTIVATION_CMD = f'conda activate {DEFAULT_ENV_NAME}'
 TARDIS_ENV_ACTIVATION = 'TARDIS_ENV_ACTIVATION'
