@@ -1,9 +1,6 @@
 =========================
 Scipion plugin for TARDIS
 =========================
-
-This plugin provides a wrapper for `tardis <https://github.com/czimaginginstitute/tardis2>`_ program.
-
 .. image:: https://img.shields.io/pypi/v/scipion-em-tardis.svg
         :target: https://pypi.python.org/pypi/scipion-em-tardis
         :alt: PyPI release
