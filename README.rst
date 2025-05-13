@@ -23,8 +23,7 @@ Scipion plugin for TARDIS
 
 This plugin provide a wrapper around the program `TARDIS <https://github.com/SMLC-NYSBC/TARDIS>`_ to use it within
 `Scipion <https://scipion-em.github.io/docs/release-3.0.0/index.html>`_ framework. It segments automatically membranes,
-microtubules, and actin filaments for predicted semantic or instance segmentations in (cryo-)electron microscopy.
-tomograms.
+microtubules, and actin filaments for predicted semantic or instance segmentations in (cryo-)electron microscopy tomograms.
 
 Installation
 ------------
