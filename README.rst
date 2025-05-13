@@ -70,8 +70,7 @@ tardis software package is available under `BSD-2-Clause license <https://openso
 Protocols
 ---------
 
-* **Tomogram segmentation: Semantic or instance segmentation of microtubules, membranes, or actin filaments
-    in tomograms.**
+* **Tomogram segmentation:** Semantic or instance segmentation of microtubules, membranes, or actin filaments in tomograms.
 
 Latest plugin versions
 ----------------------
