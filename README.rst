@@ -75,7 +75,7 @@ Protocols
 Latest plugin versions
 ----------------------
 
-If you want to check the latest version and release history go to `CHANGES <https://github.com/scipion-em-tardis/tardis/blob/master/CHANGES.txt>`_
+If you want to check the latest version and release history go to `CHANGES <https://github.com/scipion-em/scipion-em-tardis/blob/master/CHANGES.txt>`_
 
 References
 ----------------------
