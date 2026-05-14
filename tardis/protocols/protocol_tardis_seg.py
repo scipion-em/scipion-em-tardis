@@ -68,8 +68,180 @@ class TardisOutputs(Enum):
 
 
 class ProtTardisSeg(EMProtocol):
-    """Semantic or instance segmentation of microtubules, membranes, or actin filaments
-    in tomograms. More info in https://smlc-nysbc.github.io/TARDIS/index.html."""
+    """
+    Performs automated semantic and instance segmentation of membranes,
+    microtubules, or actin filaments in cryo-electron tomography datasets.
+    The protocol is designed to identify biologically relevant structures
+    directly within tomograms using deep learning approaches adapted to
+    filamentous and membrane-like cellular components. More info:
+    https://smlc-nysbc.github.io/TARDIS/index.html
+
+    AI Generated:
+
+    Tardis Segmentation (ProtTardisSeg) — User Manual
+        Overview
+
+        The Tardis Segmentation protocol provides automated detection and
+        segmentation of biologically important structures in cryo-electron
+        tomograms. It supports membranes, microtubules, and actin filaments,
+        allowing users to generate either semantic segmentations, instance
+        segmentations, or both simultaneously. The protocol is intended to
+        simplify the interpretation of crowded cellular environments by
+        transforming noisy tomographic densities into structured biological
+        annotations.
+
+        In semantic segmentation mode, the protocol identifies all voxels
+        belonging to a selected structural category, such as all membranes
+        or all microtubules within the tomogram. This output is especially
+        useful for visualization, masking, density interpretation, or
+        downstream quantitative analyses. In instance segmentation mode,
+        the protocol further separates individual structural entities,
+        distinguishing one filament or membrane object from another. This
+        becomes particularly valuable for tracing cytoskeletal organization,
+        studying filament connectivity, or measuring structural distributions
+        inside cells.
+
+        Biological Context and Typical Applications
+
+        Membrane segmentation is commonly used in studies involving organelle
+        organization, vesicle trafficking, membrane remodeling, or viral
+        assembly. Detecting membrane boundaries helps researchers isolate
+        compartments and interpret spatial relationships between cellular
+        components.
+
+        Microtubule and actin segmentation are especially relevant for
+        cytoskeletal studies. Researchers may use these outputs to analyze
+        filament architecture, intracellular transport pathways, spindle
+        organization, or structural rearrangements occurring during cellular
+        processes. Instance segmentation is particularly beneficial when
+        individual filament trajectories must be separated and analyzed
+        independently.
+
+        Inputs and Data Requirements
+
+        The protocol requires a set of tomograms as input. Since segmentation
+        quality strongly depends on tomogram quality, users should ensure
+        that the input data have been appropriately reconstructed, denoised
+        if necessary, and approximately calibrated in sampling rate.
+
+        Large voxel sizes, excessive noise, or severe reconstruction artifacts
+        may reduce segmentation accuracy. In practical workflows, moderate
+        preprocessing steps such as binning or denoising often improve the
+        robustness of the predictions, especially for filamentous targets.
+
+        Segmentation Modes
+
+        The protocol supports three operational modes. Semantic mode produces
+        voxel-wise segmentation masks describing the spatial distribution of
+        the selected structure class. Instance mode produces separated object
+        representations, enabling individual structures to be analyzed as
+        distinct biological entities. The combined mode generates both outputs
+        simultaneously and is generally the most informative option for
+        comprehensive biological interpretation.
+
+        Semantic segmentation is often preferred when the goal is masking,
+        visualization, or estimating global structural occupancy. Instance
+        segmentation becomes more important when studying connectivity,
+        filament continuity, branching, or object-level organization.
+
+        Threshold Parameters and Prediction Sensitivity
+
+        The protocol provides confidence thresholds that regulate the balance
+        between sensitivity and specificity. Lower thresholds typically
+        increase detection sensitivity and recover weaker structures, but they
+        may also introduce more false positives. Higher thresholds produce
+        cleaner outputs at the risk of missing faint or incomplete structures.
+
+        For membranes, higher thresholds are often appropriate because
+        membrane densities tend to occupy broader continuous regions. For
+        microtubules and actin filaments, lower thresholds are frequently more
+        effective because filamentous densities can be weak, discontinuous, or
+        partially obscured by noise.
+
+        In difficult datasets, users are encouraged to test several threshold
+        combinations and visually inspect the resulting segmentations before
+        selecting final parameters for quantitative analysis.
+
+        Filament-Specific Processing
+
+        When segmenting actin or microtubules, the protocol includes options
+        specifically designed for filament continuity and organization. These
+        settings help connect fragmented filament segments and reduce the
+        appearance of artificially broken structures.
+
+        The minimum filament length parameter can be used to remove short
+        detections that are unlikely to represent biologically meaningful
+        filaments. This is particularly useful in noisy datasets where small
+        isolated predictions may correspond to false positives.
+
+        Additional parameters control how nearby filament ends are connected.
+        These settings are biologically important because cytoskeletal
+        filaments frequently appear fragmented due to limited contrast,
+        missing wedge effects, or reconstruction artifacts. Proper adjustment
+        of these values can substantially improve filament continuity while
+        avoiding incorrect merging of unrelated structures.
+
+        GPU Execution and Computational Considerations
+
+        The protocol is designed for GPU acceleration and relies on pretrained
+        deep learning models. During the first execution for a given target
+        category, the required model weights may be downloaded automatically.
+        Depending on tomogram size and GPU memory availability, processing can
+        require substantial computational resources.
+
+        Very large tomograms may exceed available GPU memory. In such cases,
+        reducing tomogram dimensions through binning is often the most
+        effective solution. Binning may slightly reduce spatial detail, but it
+        can dramatically improve computational stability and execution speed.
+
+        Outputs and Interpretation
+
+        Semantic segmentation outputs are produced as tomographic masks that
+        can be visualized directly in cryo-EM software packages or used for
+        further segmentation refinement and masking procedures. These masks
+        preserve the spatial context of the detected structures within the
+        original tomogram.
+
+        Instance segmentation outputs are represented as separated structural
+        objects that can be visualized as meshes or coordinate-based
+        representations. For filamentous systems, these outputs are especially
+        valuable for studying filament trajectories, orientation distributions,
+        network organization, and spatial interactions.
+
+        Failed segmentations are separated into dedicated outputs, allowing
+        users to identify tomograms that may require additional preprocessing
+        or reduced computational load.
+
+        Practical Recommendations
+
+        For membrane segmentation, users should begin with the recommended
+        default thresholds and visually inspect the continuity of the detected
+        surfaces. If membranes appear fragmented, lowering the semantic
+        threshold may improve connectivity. If excessive noise is detected,
+        increasing the threshold generally improves specificity.
+
+        For microtubules and actin filaments, it is often beneficial to start
+        with moderate thresholds and then refine filament continuity
+        parameters according to the biological system being studied. Dense
+        cytoskeletal networks may require more conservative linking settings
+        to avoid merging neighboring filaments incorrectly.
+
+        When preparing results for quantitative structural biology analyses,
+        users should always validate automated segmentations visually,
+        especially in regions affected by strong missing wedge artifacts or
+        low local contrast.
+
+        Final Perspective
+
+        Automated segmentation has become an essential component of modern
+        cryo-electron tomography workflows because it transforms complex
+        cellular tomograms into interpretable biological structures. The
+        Tardis Segmentation protocol enables efficient extraction of membranes
+        and cytoskeletal elements while preserving their spatial organization
+        inside the cellular environment. Careful parameter selection,
+        biological validation, and thoughtful interpretation remain essential
+        for obtaining reliable and biologically meaningful results.
+    """
 
     _label = 'tomogram segmentation'
     _devStatus = BETA
