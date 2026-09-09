@@ -1,2 +1,3 @@
+3.0.2: fix protocols.conf file to display the protocol properly on the project's left panel.
 3.0.1: deploy test.
 3.0.0: First release.

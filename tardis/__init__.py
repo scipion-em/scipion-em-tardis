@@ -29,7 +29,7 @@ from pyworkflow.utils import Environ
 from .constants import *
 
 
-__version__ = '3.0.1'
+__version__ = '3.0.2'
 _logo = "icon.png"
 _references = ['Kiewisz2024.12.19.629196', '10.1093/micmic/ozad067.485']
 
